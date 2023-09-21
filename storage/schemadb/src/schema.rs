@@ -81,7 +81,7 @@ macro_rules! define_schema {
 }
 
 /// This trait defines a type that can serve as a [`Schema::Key`].
-pub trait KeyCodec<S: Schema + ?Sized>: Sized + PartialEq + Debug {
+pub trait KeyCodec<S: Schema + ?Sized>: Sized + Debug {
     /// Converts `self` to bytes to be stored in DB.
     fn encode_key(&self) -> Result<Vec<u8>>;
     /// Converts bytes fetched from DB to `Self`.
@@ -89,7 +89,7 @@ pub trait KeyCodec<S: Schema + ?Sized>: Sized + PartialEq + Debug {
 }
 
 /// This trait defines a type that can serve as a [`Schema::Value`].
-pub trait ValueCodec<S: Schema + ?Sized>: Sized + PartialEq + Debug {
+pub trait ValueCodec<S: Schema + ?Sized>: Sized + Debug {
     /// Converts `self` to bytes to be stored in DB.
     fn encode_value(&self) -> Result<Vec<u8>>;
     /// Converts bytes fetched from DB to `Self`.
