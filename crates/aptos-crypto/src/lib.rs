@@ -6,7 +6,6 @@
 #![deny(missing_docs)]
 
 //! A library supplying various cryptographic primitives
-pub mod bench_utils;
 pub mod bls12381;
 pub mod bulletproofs;
 pub mod compat;
