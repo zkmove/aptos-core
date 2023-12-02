@@ -45,7 +45,7 @@ def get_algebra_lines(gas_per_ns):
     nanoseconds['ark_bn254_fr_serialize'] = load_bench_ns.main('target/criterion/ark_bn254/fr_serialize')
     nanoseconds['ark_bn254_fr_square'] = load_bench_ns.main('target/criterion/ark_bn254/fr_square')
     nanoseconds['ark_bn254_fr_sub'] = load_bench_ns.main('target/criterion/ark_bn254/fr_sub')
-    nanoseconds['ark_bn254_fr_zero'] = load_bench_ns.main('target/criterion/ark_bn254/fr_zero')
+    nanoseconds['ark_bn254_fr_zero'] = 1
     nanoseconds['ark_bn254_fq_add'] = load_bench_ns.main('target/criterion/ark_bn254/fq_add')
     nanoseconds['ark_bn254_fq_clone'] = load_bench_ns.main('target/criterion/ark_bn254/fq_clone')
     nanoseconds['ark_bn254_fq_deser'] = load_bench_ns.main('target/criterion/ark_bn254/fq_deser')
@@ -60,7 +60,7 @@ def get_algebra_lines(gas_per_ns):
     nanoseconds['ark_bn254_fq_serialize'] = load_bench_ns.main('target/criterion/ark_bn254/fq_serialize')
     nanoseconds['ark_bn254_fq_square'] = load_bench_ns.main('target/criterion/ark_bn254/fq_square')
     nanoseconds['ark_bn254_fq_sub'] = load_bench_ns.main('target/criterion/ark_bn254/fq_sub')
-    nanoseconds['ark_bn254_fq_zero'] = load_bench_ns.main('target/criterion/ark_bn254/fq_zero')
+    nanoseconds['ark_bn254_fq_zero'] = 1
     nanoseconds['ark_bn254_fq2_add'] = load_bench_ns.main('target/criterion/ark_bn254/fq2_add')
     nanoseconds['ark_bn254_fq2_clone'] = load_bench_ns.main('target/criterion/ark_bn254/fq2_clone')
     nanoseconds['ark_bn254_fq2_deser'] = load_bench_ns.main('target/criterion/ark_bn254/fq2_deser')
@@ -75,7 +75,7 @@ def get_algebra_lines(gas_per_ns):
     nanoseconds['ark_bn254_fq2_serialize'] = load_bench_ns.main('target/criterion/ark_bn254/fq2_serialize')
     nanoseconds['ark_bn254_fq2_square'] = load_bench_ns.main('target/criterion/ark_bn254/fq2_square')
     nanoseconds['ark_bn254_fq2_sub'] = load_bench_ns.main('target/criterion/ark_bn254/fq2_sub')
-    nanoseconds['ark_bn254_fq2_zero'] = load_bench_ns.main('target/criterion/ark_bn254/fq2_zero')
+    nanoseconds['ark_bn254_fq2_zero'] = 1
     nanoseconds['ark_bn254_fq12_add'] = load_bench_ns.main('target/criterion/ark_bn254/fq12_add')
     nanoseconds['ark_bn254_fq12_clone'] = load_bench_ns.main('target/criterion/ark_bn254/fq12_clone')
     nanoseconds['ark_bn254_fq12_deser'] = load_bench_ns.main('target/criterion/ark_bn254/fq12_deser')
@@ -90,7 +90,7 @@ def get_algebra_lines(gas_per_ns):
     nanoseconds['ark_bn254_fq12_serialize'] = load_bench_ns.main('target/criterion/ark_bn254/fq12_serialize')
     nanoseconds['ark_bn254_fq12_square'] = load_bench_ns.main('target/criterion/ark_bn254/fq12_square')
     nanoseconds['ark_bn254_fq12_sub'] = load_bench_ns.main('target/criterion/ark_bn254/fq12_sub')
-    nanoseconds['ark_bn254_fq12_zero'] = load_bench_ns.main('target/criterion/ark_bn254/fq12_zero')
+    nanoseconds['ark_bn254_fq12_zero'] = 1
     nanoseconds['ark_bn254_g1_affine_deser_comp'] = load_bench_ns.main('target/criterion/ark_bn254/g1_affine_deser_comp')
     nanoseconds['ark_bn254_g1_affine_deser_uncomp'] = load_bench_ns.main('target/criterion/ark_bn254/g1_affine_deser_uncomp')
     nanoseconds['ark_bn254_g1_affine_serialize_comp'] = load_bench_ns.main('target/criterion/ark_bn254/g1_affine_serialize_comp')

@@ -16,7 +16,7 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::test_rng;
 use criterion::{BenchmarkId, Criterion};
 use std::ops::{Add, Div, Mul, Neg};
-use crate::bench_utils::{bench_function_add, bench_function_clone, bench_function_deser_comp, bench_function_deser_uncomp, bench_function_div, bench_function_double, bench_function_eq, bench_function_from_u64, bench_function_inv, bench_function_mul, bench_function_neg, bench_function_one, bench_function_pow_u256, bench_function_serialize_uncomp, bench_function_square, bench_function_sub, bench_function_zero};
+use crate::bench_utils::{bench_function_add, bench_function_clone, bench_function_deser_comp, bench_function_deser_uncomp, bench_function_div, bench_function_double, bench_function_eq, bench_function_from_u64, bench_function_inv, bench_function_mul, bench_function_neg, bench_function_pow_u256, bench_function_serialize_uncomp, bench_function_square, bench_function_sub};
 
 mod bench_utils;
 
@@ -57,12 +57,10 @@ fn bench_group(c: &mut Criterion) {
     group.bench_function("fr_inv", bench_function_inv::<Fr>);
     group.bench_function("fr_mul", bench_function_mul::<Fr>);
     group.bench_function("fr_neg", bench_function_neg::<Fr>);
-    group.bench_function("fr_one", bench_function_one::<Fr>);
     group.bench_function("fr_pow_u256", bench_function_pow_u256::<Fr>);
     group.bench_function("fr_serialize", bench_function_serialize_uncomp::<Fr>);
     group.bench_function("fr_square", bench_function_square::<Fr>);
     group.bench_function("fr_sub", bench_function_sub::<Fr>);
-    group.bench_function("fr_zero", bench_function_zero::<Fr>);
 
     group.bench_function("fq_add", bench_function_add::<Fq>);
     group.bench_function("fq_clone", bench_function_clone::<Fq>);
@@ -74,12 +72,10 @@ fn bench_group(c: &mut Criterion) {
     group.bench_function("fq_inv", bench_function_inv::<Fq>);
     group.bench_function("fq_mul", bench_function_mul::<Fq>);
     group.bench_function("fq_neg", bench_function_neg::<Fq>);
-    group.bench_function("fq_one", bench_function_one::<Fq>);
     group.bench_function("fq_pow_u256", bench_function_pow_u256::<Fq>);
     group.bench_function("fq_serialize", bench_function_serialize_uncomp::<Fq>);
     group.bench_function("fq_square", bench_function_square::<Fq>);
     group.bench_function("fq_sub", bench_function_sub::<Fq>);
-    group.bench_function("fq_zero", bench_function_zero::<Fq>);
 
     group.bench_function("fq2_add", bench_function_add::<Fq2>);
     group.bench_function("fq2_clone", bench_function_clone::<Fq2>);
@@ -91,12 +87,10 @@ fn bench_group(c: &mut Criterion) {
     group.bench_function("fq2_inv", bench_function_inv::<Fq2>);
     group.bench_function("fq2_mul", bench_function_mul::<Fq2>);
     group.bench_function("fq2_neg", bench_function_neg::<Fq2>);
-    group.bench_function("fq2_one", bench_function_one::<Fq2>);
     group.bench_function("fq2_pow_u256", bench_function_pow_u256::<Fq2>);
     group.bench_function("fq2_serialize", bench_function_serialize_uncomp::<Fq2>);
     group.bench_function("fq2_square", bench_function_square::<Fq2>);
     group.bench_function("fq2_sub", bench_function_sub::<Fq2>);
-    group.bench_function("fq2_zero", bench_function_zero::<Fq2>);
 
 
     group.bench_function("fq12_add", bench_function_add::<Fq12>);
@@ -109,12 +103,10 @@ fn bench_group(c: &mut Criterion) {
     group.bench_function("fq12_inv", bench_function_inv::<Fq12>);
     group.bench_function("fq12_mul", bench_function_mul::<Fq12>);
     group.bench_function("fq12_neg", bench_function_neg::<Fq12>);
-    group.bench_function("fq12_one", bench_function_one::<Fq12>);
     group.bench_function("fq12_pow_u256", bench_function_pow_u256::<Fq12>);
     group.bench_function("fq12_serialize", bench_function_serialize_uncomp::<Fq12>);
     group.bench_function("fq12_square", bench_function_square::<Fq12>);
     group.bench_function("fq12_sub", bench_function_sub::<Fq12>);
-    group.bench_function("fq12_zero", bench_function_zero::<Fq12>);
 
     group.bench_function("g1_affine_add", bench_function_add::<G1Affine>);
     group.bench_function("g1_affine_deser_comp", bench_function_deser_comp::<G1Affine>);
