@@ -90,7 +90,7 @@ def get_algebra_lines(gas_per_ns):
     nanoseconds['ark_bn254_pairing'] = load_bench_ns.main('target/criterion/ark_bn254/pairing')
     _,_,nanoseconds['ark_bn254_multi_pairing_per_pair'],nanoseconds['ark_bn254_multi_pairing_base'] = get_bench_ns_linear('target/criterion/ark_bn254/pairing_product')
     gas_units = {k:gas_per_ns*v for k,v in nanoseconds.items()}
-    lines = [f'    [algebra_{k}: InternalGas, {{ {TARGET_GAS_VERSION}.. => "algebra.{k}" }}, {prettify_number(v)}],' for k,v in sorted(gas_units.items())]
+    lines = [f'        [algebra_{k}: InternalGas, {{ {TARGET_GAS_VERSION}.. => "algebra.{k}" }}, {prettify_number(int(v))}],' for k,v in sorted(gas_units.items())]
     return lines
 
 def main(gas_per_ns):
@@ -99,7 +99,7 @@ def main(gas_per_ns):
     striped_lines = [line.strip() for line in lines]
     line_id_begin = striped_lines.index('// BN254 algebra gas parameters begin.')
     line_id_end = striped_lines.index('// BN254 algebra gas parameters end.')
-    generator_note_line = f'    // Generated at time {time()} by `scripts/algebra-gas/update_bn254_algebra_gas_params.py` with gas_per_ns={gas_per_ns}.'
+    generator_note_line = f'        // Generated at time {time()} by `scripts/algebra-gas/update_bn254_algebra_gas_params.py` with gas_per_ns={gas_per_ns}.'
     new_lines = lines[:line_id_begin+1] + [generator_note_line] + get_algebra_lines(gas_per_ns) + lines[line_id_end:]
     path.write_text('\n'.join(new_lines))
 
