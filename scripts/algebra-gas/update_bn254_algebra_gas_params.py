@@ -7,6 +7,7 @@ then update the gas parameter definitions in rust.
 '''
 
 import argparse
+from collections import defaultdict
 import fit_linear_model
 import load_bench_ns
 import load_bench_datapoints
@@ -119,8 +120,12 @@ def get_algebra_lines(gas_per_ns):
     nanoseconds['ark_bn254_g2_proj_to_affine'] = load_bench_ns.main('target/criterion/ark_bn254/g2_proj_to_affine')
     nanoseconds['ark_bn254_pairing'] = load_bench_ns.main('target/criterion/ark_bn254/pairing')
     _,_,nanoseconds['ark_bn254_multi_pairing_per_pair'],nanoseconds['ark_bn254_multi_pairing_base'] = get_bench_ns_linear('target/criterion/ark_bn254/pairing_product')
-    gas_units = {k:gas_per_ns*v for k,v in nanoseconds.items()}
-    lines = [f'        [algebra_{k}: InternalGas, {{ {TARGET_GAS_VERSION}.. => "algebra.{k}" }}, {prettify_number(int(v))}],' for k,v in sorted(gas_units.items())]
+
+    quantity_types = defaultdict(lambda: "InternalGas")
+    quantity_types['ark_bn254_multi_pairing_per_pair'] = 'InternalGasPerArg'
+
+    gas_param_entries = { k:(int(gas_per_ns*v), quantity_types[k]) for k,v in nanoseconds.items()}
+    lines = [f'        [algebra_{k}: {unt}, {{ {TARGET_GAS_VERSION}.. => "algebra.{k}" }}, {prettify_number(qty)}],' for k,(qty,unt) in sorted(gas_param_entries.items())]
     return lines
 
 def main(gas_per_ns):
