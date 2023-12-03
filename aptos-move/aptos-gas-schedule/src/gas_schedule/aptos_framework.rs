@@ -107,7 +107,7 @@ crate::gas_schedule::macros::define_gas_parameters!(
         [algebra_ark_bn254_pairing: InternalGas, { 12.. => "algebra.ark_bn254_pairing" }, 209_703_839],
         // BN254 algebra gas parameters end.
 
-        // Algebra gas parameters begin.
+        // BLS12-381 algebra gas parameters begin.
         // Generated at time 1680606720.0709136 by `scripts/algebra-gas/update_algebra_gas_params.py` with gas_per_ns=10.23.
         [algebra_ark_bls12_381_fq12_add: InternalGas, { 8.. => "algebra.ark_bls12_381_fq12_add" }, 36380],
         [algebra_ark_bls12_381_fq12_clone: InternalGas, { 8.. => "algebra.ark_bls12_381_fq12_clone" }, 4220],
@@ -170,7 +170,7 @@ crate::gas_schedule::macros::define_gas_parameters!(
         [algebra_ark_h2c_bls12381g1_xmd_sha256_sswu_per_msg_byte: InternalGasPerByte, { 8.. => "algebra.ark_h2c_bls12381g1_xmd_sha256_sswu_per_msg_byte" }, 960],
         [algebra_ark_h2c_bls12381g2_xmd_sha256_sswu_base: InternalGas, { 8.. => "algebra.ark_h2c_bls12381g2_xmd_sha256_sswu_base" }, 135460040],
         [algebra_ark_h2c_bls12381g2_xmd_sha256_sswu_per_msg_byte: InternalGasPerByte, { 8.. => "algebra.ark_h2c_bls12381g2_xmd_sha256_sswu_per_msg_byte" }, 960],
-        // Algebra gas parameters end.
+        // BLS12-381 algebra gas parameters end.
 
         [bls12381_base: InternalGas, "bls12381.base", 3000],
 

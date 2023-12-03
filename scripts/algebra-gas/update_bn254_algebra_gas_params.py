@@ -141,7 +141,7 @@ def main(gas_per_ns):
 PATH_STR = 'aptos-move/aptos-gas-schedule/src/gas_schedule/aptos_framework.rs'
 if __name__=='__main__':
     parser = argparse.ArgumentParser(
-        description=f'Generate gas parameters for algebra module in `{PATH_STR}`.')
+        description=f'Generate gas parameters for BN254 algebra module in `{PATH_STR}`.')
     parser.add_argument('--gas_per_ns', required=True, type=float)
     args = parser.parse_args()
     main(args.gas_per_ns)
