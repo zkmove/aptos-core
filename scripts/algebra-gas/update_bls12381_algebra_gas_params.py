@@ -92,7 +92,7 @@ def get_algebra_lines(gas_per_ns):
     _,_,nanoseconds['ark_bls12_381_multi_pairing_per_pair'],nanoseconds['ark_bls12_381_multi_pairing_base'] = get_bench_ns_linear('target/criterion/ark_bls12_381/pairing_product')
     _,_,nanoseconds['ark_h2c_bls12381g1_xmd_sha256_sswu_per_msg_byte'],nanoseconds['ark_h2c_bls12381g1_xmd_sha256_sswu_base'] = get_bench_ns_linear('target/criterion/ark_bls12_381/hash_to_g1_proj')
     _,_,nanoseconds['ark_h2c_bls12381g2_xmd_sha256_sswu_per_msg_byte'],nanoseconds['ark_h2c_bls12381g2_xmd_sha256_sswu_base'] = get_bench_ns_linear('target/criterion/ark_bls12_381/hash_to_g2_proj')
-    
+
     quantity_types = defaultdict(lambda: "InternalGas")
     quantity_types['ark_bls12_381_multi_pairing_per_pair'] = 'InternalGasPerArg'
     quantity_types['ark_h2c_bls12381g1_xmd_sha256_sswu_per_msg_byte'] = 'InternalGasPerByte'
