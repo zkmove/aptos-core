@@ -180,8 +180,8 @@ impl TryFrom<TypeTag> for HashToStructureSuite {
     }
 }
 
-/// This limit ensures that no more than 1MB will be allocated for elements per VM session.
-const MEMORY_LIMIT_IN_BYTES: usize = 1 << 20;
+/// This limit ensures that no more than 16MB will be allocated for elements per VM session.
+const MEMORY_LIMIT_IN_BYTES: usize = 1 << 24;
 
 /// Equivalent to `std::error::resource_exhausted(3)` in Move.
 const E_TOO_MUCH_MEMORY_USED: u64 = 0x09_0003;
