@@ -1,17 +1,12 @@
-// Copyright (c) The Diem Core Contributors
-// Copyright (c) The Move Contributors
-// SPDX-License-Identifier: Apache-2.0
-
-use crate::{
-    access_control::AccessControlState,
-    data_cache::TransactionDataCache,
-    loader::{Function, Loader, ModuleStorageAdapter, Resolver},
-    module_traversal::TraversalContext,
-    native_extensions::NativeContextExtensions,
-    native_functions::NativeContext,
-    trace,
+use std::{
+    cmp::min,
+    collections::{BTreeMap, HashSet, VecDeque},
+    fmt::Write,
+    sync::Arc,
 };
+
 use fail::fail_point;
+
 use move_binary_format::{
     errors::*,
     file_format::{
@@ -34,17 +29,28 @@ use move_vm_types::{
     },
     natives::function::NativeResult,
     values::{
-        self, GlobalValue, IntegerValue, Locals, Reference, Struct, StructRef, VMValueCast, Value,
-        Vector, VectorRef,
+        self, GlobalValue, IntegerValue, Locals, Reference, Struct, StructRef, Value, Vector,
+        VectorRef, VMValueCast,
     },
     views::TypeView,
 };
-use std::{
-    cmp::min,
-    collections::{BTreeMap, HashSet, VecDeque},
-    fmt::Write,
-    sync::Arc,
+
+use crate::{
+    access_control::AccessControlState,
+    data_cache::TransactionDataCache,
+    interpreter::footprint::{Footprint, Footprints},
+    loader::{Function, Loader, ModuleStorageAdapter, Resolver},
+    module_traversal::TraversalContext,
+    native_extensions::NativeContextExtensions,
+    native_functions::NativeContext,
+    trace,
 };
+
+// Copyright (c) The Diem Core Contributors
+// Copyright (c) The Move Contributors
+// SPDX-License-Identifier: Apache-2.0
+mod footprint;
+mod traced_value;
 
 macro_rules! set_err_info {
     ($frame:ident, $e:expr) => {{
@@ -68,6 +74,7 @@ pub(crate) struct Interpreter {
     access_control: AccessControlState,
     /// Set of modules that exists on call stack.
     active_modules: HashSet<ModuleId>,
+    footprints: Footprints,
 }
 
 struct TypeWithLoader<'a, 'b> {
@@ -101,6 +108,7 @@ impl Interpreter {
             paranoid_type_checks: loader.vm_config().paranoid_type_checks,
             access_control: AccessControlState::default(),
             active_modules: HashSet::new(),
+            footprints: Footprints::default(),
         }
         .execute_main(
             loader,
@@ -2447,7 +2455,9 @@ impl Frame {
                         }
                     },
                     Bytecode::ReadRef => {
+                        // todo: how to get reference value
                         let reference = interpreter.operand_stack.pop_as::<Reference>()?;
+
                         gas_meter.charge_read_ref(reference.value_view())?;
                         let value = reference.read_ref()?;
                         interpreter.operand_stack.push(value)?;
