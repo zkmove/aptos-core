@@ -1,10 +1,12 @@
+use std::collections::BTreeMap;
+
 use move_core_types::account_address::AccountAddress;
 use move_core_types::u256;
 use move_vm_types::delayed_values::delayed_field_id::DelayedFieldID;
 use move_vm_types::values::Value;
 use move_vm_types::views::{ValueView, ValueVisitor};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub enum SimpleValue {
     Invalid,
     U8(u8),
@@ -15,8 +17,11 @@ pub enum SimpleValue {
     U256(u256::U256),
     Bool(bool),
     Address(AccountAddress),
+    Reference(Reference),
 }
 
+#[derive(Clone, Debug)]
+pub struct Reference(pub usize, pub usize, pub Vec<usize>);
 #[derive(Clone, Debug)]
 pub struct ValueItem {
     sub_index: Vec<usize>,
@@ -36,12 +41,19 @@ struct FrameState {
 pub struct TracedValue {
     visit_stack: Vec<FrameState>,
     items: Vec<ValueItem>,
+    container_sub_indexes: BTreeMap<usize, Vec<usize>>,
 }
 
+pub type ValueItems = Vec<ValueItem>;
+
 impl TracedValue {
-    pub fn get(self) -> Vec<ValueItem> {
+    pub fn items(&self) -> Vec<ValueItem> {
         assert!(self.visit_stack.is_empty());
-        self.items
+        self.items.clone()
+    }
+    pub fn container_sub_indexes(&self) -> BTreeMap<usize, Vec<usize>> {
+        assert!(self.visit_stack.is_empty());
+        self.container_sub_indexes.clone()
     }
 }
 
@@ -91,7 +103,7 @@ impl TracedValue {
 }
 
 impl ValueVisitor for TracedValue {
-    fn visit_delayed(&mut self, depth: usize, id: DelayedFieldID) {
+    fn visit_delayed(&mut self, _depth: usize, _id: DelayedFieldID) {
         todo!()
     }
 
@@ -126,6 +138,20 @@ impl ValueVisitor for TracedValue {
     fn visit_address(&mut self, depth: usize, val: AccountAddress) {
         self.visit_simple(depth, SimpleValue::Address(val))
     }
+    fn visit_container(&mut self, raw_address: usize, depth: usize) {
+        match self.visit_stack.last_mut() {
+            Some(last_frame) => {
+                last_frame.counter += 1;
+                assert_eq!(last_frame.depth + 1, depth);
+            }
+            None => {
+                assert_eq!(depth, 0);
+            }
+        }
+        let mut sub_index = self.current_sub_index();
+        sub_index.push(0);
+        self.container_sub_indexes.insert(raw_address, sub_index);
+    }
 
     fn visit_struct(&mut self, depth: usize, len: usize) -> bool {
         match self.visit_stack.last_mut() {
@@ -150,7 +176,7 @@ impl ValueVisitor for TracedValue {
         true
     }
 
-    fn visit_ref(&mut self, depth: usize, is_global: bool) -> bool {
+    fn visit_ref(&mut self, _depth: usize, _is_global: bool) -> bool {
         panic!("ref cannot be a field of container")
     }
 }

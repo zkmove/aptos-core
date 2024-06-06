@@ -1,3 +1,7 @@
+// Copyright (c) The Diem Core Contributors
+// Copyright (c) The Move Contributors
+// SPDX-License-Identifier: Apache-2.0
+
 use std::{
     cmp::min,
     collections::{BTreeMap, HashSet, VecDeque},
@@ -35,20 +39,8 @@ use move_vm_types::{
     views::TypeView,
 };
 
-use crate::{
-    access_control::AccessControlState,
-    data_cache::TransactionDataCache,
-    interpreter::footprint::{Footprint, Footprints},
-    loader::{Function, Loader, ModuleStorageAdapter, Resolver},
-    module_traversal::TraversalContext,
-    native_extensions::NativeContextExtensions,
-    native_functions::NativeContext,
-    trace,
-};
+use crate::{access_control::AccessControlState, data_cache::TransactionDataCache, footprint, interpreter::footprint::Footprints, loader::{Function, Loader, ModuleStorageAdapter, Resolver}, module_traversal::TraversalContext, native_extensions::NativeContextExtensions, native_functions::NativeContext, trace};
 
-// Copyright (c) The Diem Core Contributors
-// Copyright (c) The Move Contributors
-// SPDX-License-Identifier: Apache-2.0
 mod footprint;
 mod traced_value;
 
@@ -2161,6 +2153,14 @@ impl Frame {
         let code = self.function.code();
         loop {
             for instruction in &code[self.pc as usize..] {
+                footprint!(
+                    &self.function,
+                    &self.locals,
+                    self.pc,
+                    instruction, 
+                    resolver,
+                    interpreter
+                )?;
                 trace!(
                     &self.function,
                     &self.locals,
@@ -2455,9 +2455,7 @@ impl Frame {
                         }
                     },
                     Bytecode::ReadRef => {
-                        // todo: how to get reference value
                         let reference = interpreter.operand_stack.pop_as::<Reference>()?;
-
                         gas_meter.charge_read_ref(reference.value_view())?;
                         let value = reference.read_ref()?;
                         interpreter.operand_stack.push(value)?;
