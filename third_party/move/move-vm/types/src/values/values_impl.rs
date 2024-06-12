@@ -3470,7 +3470,7 @@ impl Container {
 
     fn visit_indexed(&self, visitor: &mut impl ValueVisitor, depth: usize, idx: usize) {
         use Container::*;
-
+        visitor.visit_indexed(self.raw_address(), depth, idx);
         match self {
             Locals(r) | Vec(r) | Struct(r) => r.borrow()[idx].visit_impl(visitor, depth + 1),
             VecU8(vals) => visitor.visit_u8(depth + 1, vals.borrow()[idx]),

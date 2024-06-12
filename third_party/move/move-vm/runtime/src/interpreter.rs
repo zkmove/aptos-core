@@ -2150,14 +2150,12 @@ impl Frame {
             };
         }
 
-        let code = self.function.code();
+        let code = self.function.code().to_vec();
         loop {
             for instruction in &code[self.pc as usize..] {
                 footprint!(
-                    &self.function,
-                    &self.locals,
-                    self.pc,
-                    instruction, 
+                    self,
+                    instruction,
                     resolver,
                     interpreter
                 )?;

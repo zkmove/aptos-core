@@ -144,6 +144,7 @@ pub trait ValueVisitor {
     fn visit_address(&mut self, depth: usize, val: AccountAddress);
 
     fn visit_container(&mut self, raw_address: usize, depth: usize) {}
+    fn visit_indexed(&mut self, raw_address: usize, depth: usize, idx: usize) {}
 
     fn visit_struct(&mut self, depth: usize, len: usize) -> bool;
     fn visit_vec(&mut self, depth: usize, len: usize) -> bool;
