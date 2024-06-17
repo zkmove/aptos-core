@@ -40,10 +40,9 @@ use move_vm_types::{
 };
 
 use crate::{access_control::AccessControlState, data_cache::TransactionDataCache, loader::{Function, Loader, ModuleStorageAdapter, Resolver}, module_traversal::TraversalContext, native_extensions::NativeContextExtensions, native_functions::NativeContext, trace};
-use crate::interpreter::footprint::Footprint;
+use crate::witnessing::Footprint;
 
 pub(crate) mod footprint;
-pub(crate) mod traced_value;
 
 macro_rules! set_err_info {
     ($frame:ident, $e:expr) => {{
@@ -97,7 +96,7 @@ impl Interpreter {
         #[cfg(feature = "footprint")]
         footprints: &mut footprint::Footprints,
     ) -> VMResult<Vec<Value>> {
-        let (rets, _fps) = Interpreter {
+        let (rets, mut fps) = Interpreter {
             operand_stack: Stack::new(),
             call_stack: CallStack::new(),
             paranoid_type_checks: loader.vm_config().paranoid_type_checks,

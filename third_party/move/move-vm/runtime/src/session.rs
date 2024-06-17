@@ -558,7 +558,7 @@ pub struct LoadedFunctionInstantiation {
 
 #[cfg(feature = "footprint")]
 impl<'r, 'l> Session<'r, 'l> {
-    pub fn footprints(&self) -> crate::interpreter::footprint::Footprints {
-        self.footprints.clone()
+    pub fn footprints(&self) -> Vec<crate::witnessing::Footprint> {
+        self.footprints.clone().data
     }
 }
