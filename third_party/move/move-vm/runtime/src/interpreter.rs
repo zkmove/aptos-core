@@ -39,10 +39,11 @@ use move_vm_types::{
     views::TypeView,
 };
 
-use crate::{access_control::AccessControlState, data_cache::TransactionDataCache, footprint, interpreter::footprint::Footprints, loader::{Function, Loader, ModuleStorageAdapter, Resolver}, module_traversal::TraversalContext, native_extensions::NativeContextExtensions, native_functions::NativeContext, trace};
+use crate::{access_control::AccessControlState, data_cache::TransactionDataCache, loader::{Function, Loader, ModuleStorageAdapter, Resolver}, module_traversal::TraversalContext, native_extensions::NativeContextExtensions, native_functions::NativeContext, trace};
+use crate::interpreter::footprint::Footprint;
 
-mod footprint;
-mod traced_value;
+pub(crate) mod footprint;
+pub(crate) mod traced_value;
 
 macro_rules! set_err_info {
     ($frame:ident, $e:expr) => {{
@@ -66,7 +67,7 @@ pub(crate) struct Interpreter {
     access_control: AccessControlState,
     /// Set of modules that exists on call stack.
     active_modules: HashSet<ModuleId>,
-    footprints: Footprints,
+    footprints: footprint::Footprints,
 }
 
 struct TypeWithLoader<'a, 'b> {
@@ -93,16 +94,17 @@ impl Interpreter {
         traversal_context: &mut TraversalContext,
         extensions: &mut NativeContextExtensions,
         loader: &Loader,
+        #[cfg(feature = "footprint")]
+        footprints: &mut footprint::Footprints,
     ) -> VMResult<Vec<Value>> {
-        Interpreter {
+        let (rets, _fps) = Interpreter {
             operand_stack: Stack::new(),
             call_stack: CallStack::new(),
             paranoid_type_checks: loader.vm_config().paranoid_type_checks,
             access_control: AccessControlState::default(),
             active_modules: HashSet::new(),
-            footprints: Footprints::default(),
-        }
-        .execute_main(
+            footprints: footprint::Footprints::default(),
+        }.execute_main(
             loader,
             data_store,
             module_store,
@@ -112,7 +114,11 @@ impl Interpreter {
             function,
             ty_args,
             args,
-        )
+        )?;
+        #[cfg(feature = "footprint")]
+        footprints.data.append(&mut fps);
+
+        Ok(rets)
     }
 
     /// Main loop for the execution of a function.
@@ -132,7 +138,7 @@ impl Interpreter {
         function: Arc<Function>,
         ty_args: Vec<Type>,
         args: Vec<Value>,
-    ) -> VMResult<Vec<Value>> {
+    ) -> VMResult<(Vec<Value>, Vec<Footprint>)> {
         let mut locals = Locals::new(function.local_count());
         for (i, value) in args.into_iter().enumerate() {
             locals
@@ -196,7 +202,7 @@ impl Interpreter {
                         self.access_control
                             .exit_function(current_frame.function.as_ref())
                             .map_err(|e| self.set_location(e))?;
-                        return Ok(self.operand_stack.value);
+                        return Ok((self.operand_stack.value, self.footprints.data));
                     }
                 },
                 ExitCode::Call(fh_idx) => {
@@ -2153,7 +2159,8 @@ impl Frame {
         let code = self.function.code().to_vec();
         loop {
             for instruction in &code[self.pc as usize..] {
-                footprint!(
+                #[cfg(feature = "footprint")]
+                crate::footprint!(
                     self,
                     instruction,
                     resolver,

@@ -228,13 +228,14 @@ pub struct Footprint {
     op: Bytecode,
     data: Operation,
 }
-#[derive(Default)]
+
+#[derive(Default, Clone)]
 pub struct Footprints {
     state: FootprintState,
-    data: Vec<Footprint>,
+    pub data: Vec<Footprint>,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct FootprintState {
     // frame_index -> (local_index -> addressing)
     local_value_addressings: BTreeMap<usize, BTreeMap<usize, BTreeMap<usize, Vec<usize>>>>,
@@ -285,12 +286,12 @@ impl FootprintState {
 #[macro_export]
 macro_rules! footprint {
     ($frame:expr, $instr:tt, $resolver:expr, $interp:expr) => {
-        // Only include this code in debug releases
+        // only do footprint when the feature enabled
         $crate::interpreter::footprint::footprinting($frame, $instr, $resolver, $interp)
     };
 }
 
-pub fn footprinting(
+pub(crate) fn footprinting(
     frame: &mut Frame,
     instr: &Bytecode,
     resolver: &Resolver,
