@@ -5,6 +5,7 @@ use move_binary_format::{
     file_format::Bytecode,
     internals::ModuleIndex,
 };
+use move_binary_format::file_format_common::instruction_key;
 use move_vm_types::{
     values::{IntegerValue, StructRef, VectorRef, VMValueCast},
     views::ValueView,
@@ -18,7 +19,7 @@ use crate::{
     loader::Resolver,
 };
 use crate::witnessing::{BinaryIntegerOperationType, Footprint, Operation};
-use crate::witnessing::traced_value::{Reference, ReferenceValueVisitor, TracedValue};
+use crate::witnessing::traced_value::{Integer, Reference, ReferenceValueVisitor, TracedValue};
 
 #[derive(Default, Clone)]
 pub(crate) struct Footprints {
@@ -45,15 +46,13 @@ impl FootprintState {
             .local_value_addressings
             .entry(frame_index)
             .or_default()
-            .insert(local_index, sub_indexes.clone())
-            .unwrap();
+            .insert(local_index, sub_indexes.clone());
         for (raw_address, sub_index) in sub_indexes {
             self.reverse_local_value_addressings
                 .insert(
                     raw_address,
                     Reference::new(frame_index, local_index, sub_index),
-                )
-                .unwrap();
+                );
         }
     }
 
@@ -106,7 +105,7 @@ pub(crate) fn footprinting(
             }
         },
         Bytecode::Ret => Operation::Ret,
-        Bytecode::BrTrue(_) => {
+        Bytecode::BrTrue(offset) => {
             let val = interp
                 .operand_stack
                 .last_n(1)?
@@ -115,9 +114,9 @@ pub(crate) fn footprinting(
                 .copy_value()
                 .unwrap()
                 .value_as()?;
-            Operation::BrTrue { cond_val: val }
+            Operation::BrTrue { cond_val: val, code_offset: *offset }
         },
-        Bytecode::BrFalse(_) => {
+        Bytecode::BrFalse(offset) => {
             let val = interp
                 .operand_stack
                 .last_n(1)?
@@ -125,18 +124,18 @@ pub(crate) fn footprinting(
                 .unwrap()
                 .copy_value()?
                 .cast()?;
-            Operation::BrTrue { cond_val: val }
+            Operation::BrTrue { cond_val: val, code_offset: *offset }
         },
-        Bytecode::Branch(_) => Operation::Branch,
-        Bytecode::LdU8(_)
-        | Bytecode::LdU64(_)
-        | Bytecode::LdU128(_)
-        | Bytecode::LdU16(_)
-        | Bytecode::LdU32(_)
-        | Bytecode::LdU256(_)
-        | Bytecode::LdTrue
-        | Bytecode::LdFalse => Operation::LdSimple,
-        Bytecode::LdConst(_) => Operation::LdConst,
+        Bytecode::Branch(offset) => Operation::Branch(*offset),
+        Bytecode::LdU8(v) => Operation::LdSimple(Integer::U8(*v)),
+        Bytecode::LdU64(v) => Operation::LdSimple(Integer::U64(*v)),
+        Bytecode::LdU128(v) => Operation::LdSimple(Integer::U128(*v)),
+        Bytecode::LdU16(v) => Operation::LdSimple(Integer::U16(*v)),
+        Bytecode::LdU32(v) => Operation::LdSimple(Integer::U32(*v)),
+        Bytecode::LdU256(v) => Operation::LdSimple(Integer::U256(*v)),
+        Bytecode::LdTrue => Operation::LdTrue,
+        Bytecode::LdFalse => Operation::LdFalse,
+        Bytecode::LdConst(idx) => Operation::LdConst { const_pool_index: idx.0 },
 
         Bytecode::CastU8 => {
             let val: IntegerValue = interp
@@ -146,7 +145,7 @@ pub(crate) fn footprinting(
                 .unwrap()
                 .copy_value()?
                 .value_as()?;
-            Operation::CastU8 { origin: val }
+            Operation::CastU8 { origin: val.into() }
         },
         Bytecode::CastU64 => {
             let val: IntegerValue = interp
@@ -156,7 +155,7 @@ pub(crate) fn footprinting(
                 .unwrap()
                 .copy_value()?
                 .value_as()?;
-            Operation::CastU64 { origin: val }
+            Operation::CastU64 { origin: val.into() }
         },
         Bytecode::CastU128 => {
             let val: IntegerValue = interp
@@ -166,7 +165,7 @@ pub(crate) fn footprinting(
                 .unwrap()
                 .copy_value()?
                 .value_as()?;
-            Operation::CastU128 { origin: val }
+            Operation::CastU128 { origin: val.into() }
         },
         Bytecode::CastU16 => {
             let val: IntegerValue = interp
@@ -176,7 +175,7 @@ pub(crate) fn footprinting(
                 .unwrap()
                 .copy_value()?
                 .value_as()?;
-            Operation::CastU16 { origin: val }
+            Operation::CastU16 { origin: val.into() }
         },
         Bytecode::CastU32 => {
             let val: IntegerValue = interp
@@ -186,7 +185,7 @@ pub(crate) fn footprinting(
                 .unwrap()
                 .copy_value()?
                 .value_as()?;
-            Operation::CastU32 { origin: val }
+            Operation::CastU32 { origin: val.into() }
         },
         Bytecode::CastU256 => {
             let val: IntegerValue = interp
@@ -196,11 +195,12 @@ pub(crate) fn footprinting(
                 .unwrap()
                 .copy_value()?
                 .value_as()?;
-            Operation::CastU256 { origin: val }
+            Operation::CastU256 { origin: val.into() }
         },
         Bytecode::CopyLoc(idx) => {
             let local = locals.copy_loc(*idx as usize)?;
             Operation::CopyLoc {
+                local_index: *idx,
                 local: TracedValue::from(&local).items(),
             }
         },
@@ -211,6 +211,7 @@ pub(crate) fn footprinting(
                 .remove_local(frame_index, *idx as usize);
             let local = locals.copy_loc(*idx as usize)?;
             Operation::MoveLoc {
+                local_index: *idx,
                 local: TracedValue::from(&local).items(),
             }
         },
@@ -230,16 +231,22 @@ pub(crate) fn footprinting(
                 *idx as usize,
                 new_value.container_sub_indexes(),
             );
+            let old_local = if locals.is_invalid(*idx as usize)? {
+                None
+            } else {
+                Some(locals.copy_loc(*idx as usize)?)
+            };
 
-            let old_local = locals.copy_loc(*idx as usize)?;
             Operation::StLoc {
-                old_local: TracedValue::from(&old_local).items(),
+                local_index: *idx,
+                old_local: old_local.map(|v| TracedValue::from(&v).items()),
                 new_value: new_value.items(),
             }
         },
         Bytecode::Call(fh_idx) => {
             let func = resolver.function_from_handle(*fh_idx)?;
             Operation::Call {
+                fh_idx: fh_idx.0,
                 args: interp
                     .operand_stack
                     .last_n(func.param_count())?
@@ -251,6 +258,7 @@ pub(crate) fn footprinting(
             let func = resolver.function_from_instantiation(*fh_idx)?;
 
             Operation::CallGeneric {
+                fh_idx: fh_idx.0,
                 args: interp
                     .operand_stack
                     .last_n(func.param_count())?
@@ -262,6 +270,7 @@ pub(crate) fn footprinting(
             let field_count = resolver.field_count(*sd_idx);
 
             Operation::Pack {
+                sd_idx: sd_idx.0,
                 args: interp
                     .operand_stack
                     .last_n(field_count as usize)?
@@ -272,6 +281,7 @@ pub(crate) fn footprinting(
         Bytecode::PackGeneric(si_idx) => {
             let field_count = resolver.field_instantiation_count(*si_idx);
             Operation::PackGeneric {
+                si_idx: si_idx.0,
                 args: interp
                     .operand_stack
                     .last_n(field_count as usize)?
@@ -279,7 +289,8 @@ pub(crate) fn footprinting(
                     .collect::<Vec<_>>(),
             }
         },
-        Bytecode::Unpack(_sd_idx) => Operation::Unpack {
+        Bytecode::Unpack(sd_idx) => Operation::Unpack {
+            sd_idx: sd_idx.0,
             arg: interp
                 .operand_stack
                 .last_n(1)?
@@ -287,7 +298,8 @@ pub(crate) fn footprinting(
                 .map(|t| TracedValue::from(t).items())
                 .unwrap(),
         },
-        Bytecode::UnpackGeneric(_sd_idx) => Operation::UnpackGeneric {
+        Bytecode::UnpackGeneric(sd_idx) => Operation::UnpackGeneric {
+            sd_idx: sd_idx.0,
             arg: interp
                 .operand_stack
                 .last_n(1)?
@@ -351,12 +363,14 @@ pub(crate) fn footprinting(
             }
         },
         Bytecode::FreezeRef => Operation::FreezeRef,
-        Bytecode::MutBorrowLoc(_idx) => Operation::BorrowLoc {
+        Bytecode::MutBorrowLoc(idx) => Operation::BorrowLoc {
             imm: false,
+            local_index: *idx,
             // reference: Reference::new(frame_index, *idx as usize, vec![0]),
         },
-        Bytecode::ImmBorrowLoc(_idx) => Operation::BorrowLoc {
+        Bytecode::ImmBorrowLoc(idx) => Operation::BorrowLoc {
             imm: true,
+            local_index: *idx,
             // not need, as outside can build the reference themselves
             // reference: Reference::new(frame_index, *idx as usize, vec![0]), // TODO: should add 0 or not
         },
@@ -378,6 +392,7 @@ pub(crate) fn footprinting(
                 .expect("index by ptr ok");
             let offset = resolver.field_offset(*fh_idx);
             Operation::BorrowField {
+                fh_idx: fh_idx.0,
                 imm: false,
                 reference,
                 field_offset: offset,
@@ -401,6 +416,7 @@ pub(crate) fn footprinting(
                 .expect("index by ptr ok");
             let offset = resolver.field_instantiation_offset(*fi_idx);
             Operation::BorrowFieldGeneric {
+                fi_idx: fi_idx.0,
                 imm: false,
                 reference,
                 field_offset: offset,
@@ -418,6 +434,7 @@ pub(crate) fn footprinting(
 
             let offset = resolver.field_offset(*fh_idx);
             Operation::BorrowField {
+                fh_idx: fh_idx.0,
                 imm: true,
                 reference: interp
                     .footprints
@@ -447,6 +464,7 @@ pub(crate) fn footprinting(
                 .expect("index by ptr ok");
             let offset = resolver.field_instantiation_offset(*fi_idx);
             Operation::BorrowFieldGeneric {
+                fi_idx: fi_idx.0,
                 imm: true,
                 reference,
                 field_offset: offset,
@@ -471,8 +489,8 @@ pub(crate) fn footprinting(
                 .collect::<PartialVMResult<Vec<_>>>()?;
             Operation::BinaryOp {
                 ty: BinaryIntegerOperationType::try_from(instr.clone()).unwrap(),
-                rhs: operands.pop().unwrap(),
-                lhs: operands.pop().unwrap(),
+                rhs: operands.pop().unwrap().into(),
+                lhs: operands.pop().unwrap().into(),
             }
         },
 
@@ -552,7 +570,7 @@ pub(crate) fn footprinting(
                 .collect::<PartialVMResult<Vec<_>>>()?;
             Operation::Shl {
                 rhs: operands.pop().unwrap().value_as()?,
-                lhs: operands.pop().unwrap().value_as()?,
+                lhs: operands.pop().unwrap().value_as::<IntegerValue>()?.into(),
             }
         },
         Bytecode::Shr => {
@@ -563,17 +581,21 @@ pub(crate) fn footprinting(
                 .collect::<PartialVMResult<Vec<_>>>()?;
             Operation::Shr {
                 rhs: operands.pop().unwrap().value_as()?,
-                lhs: operands.pop().unwrap().value_as()?,
+                lhs: operands.pop().unwrap().value_as::<IntegerValue>()?.into(),
             }
         },
-        Bytecode::VecPack(_si, num) => Operation::VecPack {
+        Bytecode::VecPack(si, num) => Operation::VecPack {
+            si: si.0,
+            num: *num,
             args: interp
                 .operand_stack
                 .last_n(*num as usize)?
                 .map(|t| TracedValue::from(t).items())
                 .collect::<Vec<_>>(),
         },
-        Bytecode::VecUnpack(_, _num) => Operation::VecUnpack {
+        Bytecode::VecUnpack(si, num) => Operation::VecUnpack {
+            si: si.0,
+            num: *num,
             arg: interp
                 .operand_stack
                 .last_n(1)?
@@ -603,6 +625,8 @@ pub(crate) fn footprinting(
                 vec_ref.len(ty)?
             };
             Operation::VecLen {
+                si: si.0,
+
                 vec_ref: interp
                     .footprints
                     .state
@@ -625,16 +649,17 @@ pub(crate) fn footprinting(
             vec_ref.visit(&mut reference_visitor);
             assert!(reference_visitor.indexed.is_none());
 
-            let vec_ref = vec_ref.value_as::<VectorRef>()?;
-            let elem = {
-                let (ty, _ty_count) =
-                    frame
-                        .ty_cache
-                        .get_signature_index_type(*si, resolver, &frame.ty_args)?;
-                vec_ref.borrow_elem(idx as usize, ty)?
-            };
-
+            // let vec_ref = vec_ref.value_as::<VectorRef>()?;
+            // let elem = {
+            //     let (ty, _ty_count) =
+            //         frame
+            //             .ty_cache
+            //             .get_signature_index_type(*si, resolver, &frame.ty_args)?;
+            //     vec_ref.borrow_elem(idx as usize, ty)?
+            // };
             Operation::VecBorrow {
+                si: si.0,
+
                 imm: matches!(instr, Bytecode::VecImmBorrow(_)),
                 idx,
                 vec_ref: interp
@@ -644,8 +669,6 @@ pub(crate) fn footprinting(
                     .get(&reference_visitor.reference_pointer)
                     .cloned()
                     .unwrap(),
-
-                elem: TracedValue::from(&elem).items(),
             }
         },
         Bytecode::VecPushBack(si) => {
@@ -670,6 +693,8 @@ pub(crate) fn footprinting(
             let vec_len = vec_ref.len(ty)?;
 
             Operation::VecPushBack {
+                si: si.0,
+
                 vec_ref: interp
                     .footprints
                     .state
@@ -701,9 +726,11 @@ pub(crate) fn footprinting(
 
             let vec_len: u64 = vec_ref.len(ty)?.value_as()?;
 
-            let elem = vec_ref.borrow_elem((vec_len - 1) as usize, ty)?;
+            let elem = vec_ref.borrow_elem((vec_len - 1) as usize, ty)?.value_as::<move_vm_types::values::Reference>()?.read_ref()?;
 
             Operation::VecPopBack {
+                si: si.0,
+
                 vec_len,
                 vec_ref: interp
                     .footprints
@@ -736,10 +763,12 @@ pub(crate) fn footprinting(
                     .ty_cache
                     .get_signature_index_type(*si, resolver, &frame.ty_args)?;
             let vec_len: u64 = vec_ref.len(ty)?.value_as()?;
-            let idx2_elem = vec_ref.borrow_elem(idx2 as usize, ty)?;
-            let idx1_elem = vec_ref.borrow_elem(idx2 as usize, ty)?;
+            let idx2_elem = vec_ref.borrow_elem(idx2 as usize, ty)?.value_as::<move_vm_types::values::Reference>()?.read_ref()?;
+            let idx1_elem = vec_ref.borrow_elem(idx2 as usize, ty)?.value_as::<move_vm_types::values::Reference>()?.read_ref()?;
 
             Operation::VecSwap {
+                si: si.0,
+
                 vec_len,
                 vec_ref: interp
                     .footprints
@@ -769,7 +798,7 @@ pub(crate) fn footprinting(
     };
 
     interp.footprints.data.push(Footprint {
-        op: instr.clone(),
+        op: instruction_key(instr),
         module_id,
         function_id: function_index.into_index(),
         pc,

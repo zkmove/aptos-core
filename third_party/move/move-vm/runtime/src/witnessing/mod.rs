@@ -1,14 +1,15 @@
+use serde::{Deserialize, Serialize};
+
 use move_binary_format::errors::PartialVMError;
 use move_binary_format::file_format::Bytecode;
 use move_core_types::language_storage::ModuleId;
 use move_core_types::vm_status::StatusCode;
-use move_vm_types::values::IntegerValue;
 
-use crate::witnessing::traced_value::{Reference, ValueItems};
+use crate::witnessing::traced_value::{Integer, Reference, ValueItems};
 
 pub mod traced_value;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Operation {
     Pop {
         poped_value: ValueItems,
@@ -16,39 +17,52 @@ pub enum Operation {
     Ret,
     BrTrue {
         cond_val: bool,
+        code_offset: u16,
     },
     BrFalse {
         cond_val: bool,
+        code_offset: u16,
     },
-    Branch,
-    LdSimple, // LdU{8,16,32,64,128,256}
-    LdConst,
+    Branch(u16),
+    LdSimple(Integer), // LdU{8,16,32,64,128,256}
+    LdTrue,
+    LdFalse,
+    LdConst { const_pool_index: u16 },
     CopyLoc {
+        local_index: u8,
         local: ValueItems,
     },
     MoveLoc {
+        local_index: u8,
         local: ValueItems,
     },
     StLoc {
-        old_local: ValueItems,
+        local_index: u8,
+        old_local: Option<ValueItems>,
         new_value: ValueItems,
     },
     Call {
+        fh_idx: u16,
         args: Vec<ValueItems>,
     },
     CallGeneric {
+        fh_idx: u16,
         args: Vec<ValueItems>,
     },
     Pack {
+        sd_idx: u16,
         args: Vec<ValueItems>,
     },
     PackGeneric {
+        si_idx: u16,
         args: Vec<ValueItems>,
     },
     Unpack {
+        sd_idx: u16,
         arg: ValueItems,
     },
     UnpackGeneric {
+        sd_idx: u16,
         arg: ValueItems,
     },
     ReadRef {
@@ -63,8 +77,8 @@ pub enum Operation {
     FreezeRef,
     BinaryOp {
         ty: BinaryIntegerOperationType,
-        lhs: IntegerValue,
-        rhs: IntegerValue,
+        lhs: Integer,
+        rhs: Integer,
     },
     Or {
         lhs: bool,
@@ -79,11 +93,11 @@ pub enum Operation {
     },
     Shl {
         rhs: u8,
-        lhs: IntegerValue,
+        lhs: Integer,
     },
     Shr {
         rhs: u8,
-        lhs: IntegerValue,
+        lhs: Integer,
     },
     Eq {
         lhs: ValueItems,
@@ -98,33 +112,42 @@ pub enum Operation {
     },
     Nop,
     VecPack {
+        si: u16,
+        num: u64,
         args: Vec<ValueItems>,
     },
     VecUnpack {
+        si: u16,
+        num: u64,
         arg: ValueItems,
     },
     VecLen {
+        si: u16,
         vec_ref: Reference,
         len: u64,
     },
     VecBorrow {
+        si: u16,
         imm: bool,
         idx: u64,
         vec_ref: Reference,
-        elem: ValueItems,
+        //elem: ValueItems,
     },
     VecPushBack {
+        si: u16,
         vec_len: u64,
         vec_ref: Reference,
         elem: ValueItems,
     },
     VecPopBack {
+        si: u16,
         vec_len: u64,
         vec_ref: Reference,
         elem: ValueItems,
     },
 
     VecSwap {
+        si: u16,
         vec_ref: Reference,
         vec_len: u64,
         idx1: u64,
@@ -134,39 +157,42 @@ pub enum Operation {
     },
     BorrowLoc {
         imm: bool,
+        local_index: u8,
     },
-    ImmBorrowLoc,
+
     BorrowField {
         imm: bool,
+        fh_idx: u16,
         reference: Reference,
         field_offset: usize,
     },
     BorrowFieldGeneric {
+        fi_idx: u16,
         imm: bool,
         reference: Reference,
         field_offset: usize,
     },
     CastU8 {
-        origin: IntegerValue,
+        origin: Integer,
     },
     CastU16 {
-        origin: IntegerValue,
+        origin: Integer,
     },
     CastU32 {
-        origin: IntegerValue,
+        origin: Integer,
     },
     CastU64 {
-        origin: IntegerValue,
+        origin: Integer,
     },
     CastU128 {
-        origin: IntegerValue,
+        origin: Integer,
     },
     CastU256 {
-        origin: IntegerValue,
+        origin: Integer,
     },
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum BinaryIntegerOperationType {
     Add,
     Sub,
@@ -207,14 +233,14 @@ impl TryFrom<Bytecode> for BinaryIntegerOperationType {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Footprint {
     pub module_id: Option<ModuleId>,
     pub function_id: usize,
     pub pc: u16,
     pub frame_index: usize,
     pub stack_pointer: usize,
-    pub op: Bytecode,
+    pub op: u8,
     pub data: Operation,
 }
 

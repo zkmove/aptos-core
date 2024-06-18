@@ -1,13 +1,16 @@
 use std::collections::BTreeMap;
 
+use serde::{Deserialize, Serialize};
+
 use move_core_types::{account_address::AccountAddress, u256, u256::U256};
 use move_vm_types::{
     delayed_values::delayed_field_id::DelayedFieldID,
     values::Value,
     views::{ValueView, ValueVisitor},
 };
+use move_vm_types::values::IntegerValue;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum SimpleValue {
     U8(u8),
     U16(u16),
@@ -19,7 +22,31 @@ pub enum SimpleValue {
     Address(AccountAddress),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum Integer {
+    U8(u8),
+    U16(u16),
+    U32(u32),
+    U64(u64),
+    U128(u128),
+    U256(U256),
+}
+
+
+impl From<IntegerValue> for Integer {
+    fn from(value: IntegerValue) -> Self {
+        match value {
+            IntegerValue::U8(v) => { Self::U8(v) }
+            IntegerValue::U16(v) => { Self::U16(v) }
+            IntegerValue::U32(v) => Self::U32(v),
+            IntegerValue::U64(v) => Self::U64(v),
+            IntegerValue::U128(v) => Self::U128(v),
+            IntegerValue::U256(v) => Self::U256(v)
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Reference {
     pub frame_index: usize,
     pub local_index: usize,
@@ -36,7 +63,7 @@ impl Reference {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ValueItem {
     sub_index: Vec<usize>,
     header: bool,

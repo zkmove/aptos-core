@@ -2,14 +2,10 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    sandbox::utils::{
-        contains_module, explain_execution_effects, explain_execution_error, get_gas_status,
-        is_bytecode_file, maybe_commit_effects, on_disk_state_view::OnDiskStateView,
-    },
-    NativeFunctionRecord,
-};
+use std::{fs, path::Path};
+
 use anyhow::{anyhow, bail, Result};
+
 use move_binary_format::file_format::CompiledModule;
 use move_command_line_common::env::get_bytecode_version_from_env;
 use move_core_types::{
@@ -26,7 +22,14 @@ use move_vm_runtime::{
     move_vm::MoveVM,
 };
 use move_vm_test_utils::gas_schedule::CostTable;
-use std::{fs, path::Path};
+
+use crate::{
+    NativeFunctionRecord,
+    sandbox::utils::{
+        contains_module, explain_execution_effects, explain_execution_error, get_gas_status,
+        is_bytecode_file, maybe_commit_effects, on_disk_state_view::OnDiskStateView,
+    },
+};
 
 #[allow(clippy::too_many_arguments)]
 pub fn run(
@@ -43,6 +46,7 @@ pub fn run(
     gas_budget: Option<u64>,
     bytecode_version: Option<u32>,
     dry_run: bool,
+    gen_witness: bool,
     verbose: bool,
 ) -> Result<()> {
     if !script_path.exists() {
@@ -132,6 +136,10 @@ move run` must be applied to a module inside `storage/`",
             txn_args,
         )
     } else {
+        if gen_witness {
+            let fp = session.footprints();
+            println!("{:?}", fp);
+        }
         let changeset = session.finish().map_err(|e| e.into_vm_status())?;
         if verbose {
             explain_execution_effects(&changeset, state)?
