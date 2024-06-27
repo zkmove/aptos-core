@@ -20,6 +20,7 @@ pub enum SimpleValue {
     U256(U256),
     Bool(bool),
     Address(AccountAddress),
+    Reference(Reference),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
