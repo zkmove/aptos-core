@@ -66,9 +66,9 @@ impl Reference {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ValueItem {
-    sub_index: Vec<usize>,
-    header: bool,
-    value: SimpleValue,
+    pub sub_index: Vec<usize>,
+    pub header: bool,
+    pub value: SimpleValue,
 }
 
 #[derive(Copy, Clone)]
