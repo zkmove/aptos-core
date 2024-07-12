@@ -10,7 +10,7 @@ use move_vm_types::{
 };
 use move_vm_types::values::IntegerValue;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum SimpleValue {
     U8(u8),
     U16(u16),
@@ -23,7 +23,7 @@ pub enum SimpleValue {
     Reference(Reference),
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Integer {
     U8(u8),
     U16(u16),
@@ -47,7 +47,7 @@ impl From<IntegerValue> for Integer {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Reference {
     pub frame_index: usize,
     pub local_index: usize,
@@ -64,14 +64,14 @@ impl Reference {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ValueItem {
     pub sub_index: Vec<usize>,
     pub header: bool,
     pub value: SimpleValue,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 struct FrameState {
     depth: usize,
     len: usize,
