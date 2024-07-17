@@ -37,12 +37,25 @@ pub enum Integer {
 impl From<IntegerValue> for Integer {
     fn from(value: IntegerValue) -> Self {
         match value {
-            IntegerValue::U8(v) => { Self::U8(v) }
-            IntegerValue::U16(v) => { Self::U16(v) }
+            IntegerValue::U8(v) => Self::U8(v),
+            IntegerValue::U16(v) => Self::U16(v),
             IntegerValue::U32(v) => Self::U32(v),
             IntegerValue::U64(v) => Self::U64(v),
             IntegerValue::U128(v) => Self::U128(v),
-            IntegerValue::U256(v) => Self::U256(v)
+            IntegerValue::U256(v) => Self::U256(v),
+        }
+    }
+}
+
+impl From<Integer> for SimpleValue {
+    fn from(value: Integer) -> Self {
+        match value {
+            Integer::U8(v) => Self::U8(v),
+            Integer::U16(v) => Self::U16(v),
+            Integer::U32(v) => Self::U32(v),
+            Integer::U64(v) => Self::U64(v),
+            Integer::U128(v) => Self::U128(v),
+            Integer::U256(v) => Self::U256(v),
         }
     }
 }
