@@ -1,14 +1,11 @@
-use std::collections::BTreeMap;
-
-use serde::{Deserialize, Serialize};
-
 use move_core_types::{account_address::AccountAddress, u256, u256::U256};
 use move_vm_types::{
     delayed_values::delayed_field_id::DelayedFieldID,
-    values::Value,
+    values::{IntegerValue, Value},
     views::{ValueView, ValueVisitor},
 };
-use move_vm_types::values::IntegerValue;
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum SimpleValue {
@@ -33,12 +30,11 @@ pub enum Integer {
     U256(U256),
 }
 
-
 impl From<IntegerValue> for Integer {
     fn from(value: IntegerValue) -> Self {
         match value {
-            IntegerValue::U8(v) => Self::U8(v),
-            IntegerValue::U16(v) => Self::U16(v),
+            IntegerValue::U8(v) => { Self::U8(v) }
+            IntegerValue::U16(v) => { Self::U16(v) }
             IntegerValue::U32(v) => Self::U32(v),
             IntegerValue::U64(v) => Self::U64(v),
             IntegerValue::U128(v) => Self::U128(v),
@@ -56,6 +52,43 @@ impl From<Integer> for SimpleValue {
             Integer::U64(v) => Self::U64(v),
             Integer::U128(v) => Self::U128(v),
             Integer::U256(v) => Self::U256(v),
+        }
+    }
+}
+
+impl TryFrom<SimpleValue> for Integer {
+    type Error = anyhow::Error;
+
+    fn try_from(value: SimpleValue) -> anyhow::Result<Integer> {
+        match value {
+            SimpleValue::U8(v) => Ok(Integer::U8(v)),
+            SimpleValue::U16(v) => Ok(Integer::U16(v)),
+            SimpleValue::U32(v) => Ok(Integer::U32(v)),
+            SimpleValue::U64(v) => Ok(Integer::U64(v)),
+            SimpleValue::U128(v) => Ok(Integer::U128(v)),
+            SimpleValue::U256(v) => Ok(Integer::U256(v)),
+            _ => Err(anyhow::anyhow!(
+                "Invalid SimpleValue type for converting into Integer"
+            )),
+        }
+    }
+}
+
+/// Return lower and higher 128-bits of of an Integer as u128 pair
+impl From<Integer> for (u128 /*lo*/, u128 /*hi*/) {
+    fn from(value: Integer) -> (u128, u128) {
+        match value {
+            Integer::U8(v) => (v as u128, 0u128),
+            Integer::U16(v) => (v as u128, 0u128),
+            Integer::U32(v) => (v as u128, 0u128),
+            Integer::U64(v) => (v as u128, 0u128),
+            Integer::U128(v) => (v as u128, 0u128),
+            Integer::U256(v) => {
+                let bytes = v.to_le_bytes();
+                let lo = u128::from_le_bytes(bytes[..16].try_into().unwrap());
+                let hi = u128::from_le_bytes(bytes[16..].try_into().unwrap());
+                (lo, hi)
+            },
         }
     }
 }
