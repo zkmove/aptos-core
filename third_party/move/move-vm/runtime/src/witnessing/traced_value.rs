@@ -43,6 +43,19 @@ impl From<IntegerValue> for Integer {
     }
 }
 
+impl From<Integer> for IntegerValue {
+    fn from(value: Integer) -> Self {
+        match value {
+            Integer::U8(v) => Self::U8(v),
+            Integer::U16(v) => Self::U16(v),
+            Integer::U32(v) => Self::U32(v),
+            Integer::U64(v) => Self::U64(v),
+            Integer::U128(v) => Self::U128(v),
+            Integer::U256(v) => Self::U256(v),
+        }
+    }
+}
+
 impl From<Integer> for SimpleValue {
     fn from(value: Integer) -> Self {
         match value {
