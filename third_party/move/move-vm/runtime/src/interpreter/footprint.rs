@@ -18,7 +18,7 @@ use crate::{
     },
     loader::Resolver,
 };
-use crate::witnessing::{BinaryIntegerOperationType, Footprint, Operation};
+use crate::witnessing::{BinaryIntegerOperationType, CallerInfo, Footprint, Operation};
 use crate::witnessing::traced_value::{Integer, Reference, ReferenceValueVisitor, TracedValue};
 
 #[derive(Default, Clone)]
@@ -97,6 +97,7 @@ pub(crate) fn footprinting(
     let stack_pointer = interp.operand_stack.value.len();
 
     let _caller_frame = interp.call_stack.0.last();
+
     let operation = match instr {
         Bytecode::Pop => {
             let val = interp.operand_stack.last_n(1)?.last().unwrap();
@@ -104,7 +105,16 @@ pub(crate) fn footprinting(
                 poped_value: TracedValue::from(val).items(),
             }
         },
-        Bytecode::Ret => Operation::Ret,
+        Bytecode::Ret => {
+            let caller = _caller_frame.map(|caller| CallerInfo {
+                frame_index:
+                frame_index - 1,
+                module_id: caller.function.module_id().cloned(),
+                function_id: caller.function.index().into_index(),
+                pc: caller.pc,
+            });
+            Operation::Ret { caller }
+        },
         Bytecode::BrTrue(offset) => {
             let val = interp
                 .operand_stack

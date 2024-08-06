@@ -10,11 +10,18 @@ use crate::witnessing::traced_value::{Integer, Reference, ValueItems};
 pub mod traced_value;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CallerInfo {
+    pub frame_index: usize,
+    pub module_id: Option<ModuleId>,
+    pub function_id: usize,
+    pub pc: u16,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Operation {
     Pop {
         poped_value: ValueItems,
     },
-    Ret,
+    Ret { caller: Option<CallerInfo> },
     BrTrue {
         cond_val: bool,
         code_offset: u16,
