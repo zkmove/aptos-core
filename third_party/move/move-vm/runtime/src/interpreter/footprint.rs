@@ -134,7 +134,7 @@ pub(crate) fn footprinting(
                 .unwrap()
                 .copy_value()?
                 .cast()?;
-            Operation::BrTrue { cond_val: val, code_offset: *offset }
+            Operation::BrFalse { cond_val: val, code_offset: *offset }
         },
         Bytecode::Branch(offset) => Operation::Branch(*offset),
         Bytecode::LdU8(v) => Operation::LdSimple(Integer::U8(*v)),
