@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-
+use std::sync::Arc;
 use move_binary_format::{
     errors::PartialVMResult,
     file_format::Bytecode,
@@ -7,7 +7,7 @@ use move_binary_format::{
 };
 use move_binary_format::file_format_common::Opcodes;
 use move_vm_types::{
-    values::{IntegerValue, StructRef, VectorRef, VMValueCast},
+    values::{IntegerValue, StructRef, Value, VectorRef, VMValueCast},
     views::ValueView,
 };
 
@@ -18,6 +18,7 @@ use crate::{
     },
     loader::Resolver,
 };
+use crate::loader::Function;
 use crate::witnessing::{BinaryIntegerOperationType, CallerInfo, Footprint, Operation};
 use crate::witnessing::traced_value::{Integer, Reference, ReferenceValueVisitor, TracedValue};
 
@@ -71,6 +72,34 @@ impl FootprintState {
         self.reverse_local_value_addressings
             .retain(|_k, v| v.frame_index != frame_index);
     }
+}
+
+pub(crate) fn footprint_args_processing(interp: &mut Interpreter, function: &Arc<Function>, args: &Vec<Value>) {
+    let module_id = function.module_id();
+    let function_id = function.index().into_index();
+    let mut values = Vec::new();
+    for (i, value) in args.into_iter().enumerate() {
+        let traced_value = TracedValue::from(value);
+        interp.footprints.state.add_local(
+            0,
+            i,
+            traced_value.container_sub_indexes(),
+        );
+        values.push(traced_value.items());
+    }
+    interp.footprints.data.push(Footprint {
+        op: 0,
+        module_id: module_id.cloned(),
+        function_id,
+        pc: 0,
+        frame_index: 0,
+        stack_pointer: 0,
+        aux0: None,
+        aux1: None,
+        data: Operation::Start {
+            args: values,
+        },
+    });
 }
 
 #[macro_export]

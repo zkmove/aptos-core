@@ -41,6 +41,7 @@ use move_vm_types::{
 
 use crate::{access_control::AccessControlState, data_cache::TransactionDataCache, loader::{Function, Loader, ModuleStorageAdapter, Resolver}, module_traversal::TraversalContext, native_extensions::NativeContextExtensions, native_functions::NativeContext, trace};
 use crate::witnessing::Footprint;
+use crate::interpreter::footprint::footprint_args_processing;
 
 pub(crate) mod footprint;
 
@@ -138,6 +139,9 @@ impl Interpreter {
         ty_args: Vec<Type>,
         args: Vec<Value>,
     ) -> VMResult<(Vec<Value>, Vec<Footprint>)> {
+        #[cfg(feature = "footprint")]
+        footprint_args_processing(&mut self, &function, &args);
+
         let mut locals = Locals::new(function.local_count());
         for (i, value) in args.into_iter().enumerate() {
             locals

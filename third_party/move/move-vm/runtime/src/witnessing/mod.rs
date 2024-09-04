@@ -18,6 +18,9 @@ pub struct CallerInfo {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Operation {
+    Start {
+        args: Vec<ValueItems>,
+    },
     Pop {
         poped_value: ValueItems,
     },
