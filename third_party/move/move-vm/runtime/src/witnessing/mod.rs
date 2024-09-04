@@ -248,6 +248,8 @@ pub struct Footprint {
     pub frame_index: usize,
     pub stack_pointer: usize,
     pub op: u8,
+    pub aux0: Option<u128>,
+    pub aux1: Option<u128>,
     pub data: Operation,
 }
 

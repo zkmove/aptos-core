@@ -5,7 +5,7 @@ use move_binary_format::{
     file_format::Bytecode,
     internals::ModuleIndex,
 };
-use move_binary_format::file_format_common::instruction_key;
+use move_binary_format::file_format_common::Opcodes;
 use move_vm_types::{
     values::{IntegerValue, StructRef, VectorRef, VMValueCast},
     views::ValueView,
@@ -807,8 +807,11 @@ pub(crate) fn footprinting(
         },
     };
 
+    let inst = serialize_instruction(instr);
     interp.footprints.data.push(Footprint {
-        op: instruction_key(instr),
+        op: inst.opcodes as u8,
+        aux0: inst.aux0,
+        aux1: inst.aux1,
         module_id,
         function_id: function_index.into_index(),
         pc,
@@ -817,4 +820,108 @@ pub(crate) fn footprinting(
         data: operation,
     });
     Ok(())
+}
+
+#[derive(Copy, Clone, Debug)]
+struct Instruction {
+    opcodes: Opcodes,
+    aux0: Option<u128>,
+    aux1: Option<u128>,
+}
+
+impl Instruction {
+    pub fn new(opcodes: Opcodes, aux0: Option<u128>, aux1: Option<u128>) -> Self {
+        Self {
+            opcodes,
+            aux0,
+            aux1,
+        }
+    }
+}
+
+/// the logic is similar to third_party/move/move-binary-format/src/serializer.rs#serialize_instruction_inner
+fn serialize_instruction(opcode: &Bytecode) -> Instruction {
+    match opcode {
+        Bytecode::FreezeRef => Instruction::new(Opcodes::FREEZE_REF, None, None),
+        Bytecode::Pop => Instruction::new(Opcodes::POP, None, None),
+        Bytecode::Ret => Instruction::new(Opcodes::RET, None, None),
+        Bytecode::BrTrue(code_offset) => Instruction::new(Opcodes::BR_TRUE, Some(*code_offset as u128), None),
+        Bytecode::BrFalse(code_offset) => Instruction::new(Opcodes::BR_FALSE, Some(*code_offset as u128), None),
+        Bytecode::Branch(code_offset) => Instruction::new(Opcodes::BRANCH, Some(*code_offset as u128), None),
+        Bytecode::LdU8(value) => Instruction::new(Opcodes::LD_U8, Some(*value as u128), None),
+        Bytecode::LdU64(value) => Instruction::new(Opcodes::LD_U64, Some(*value as u128), None),
+        Bytecode::LdU128(value) => Instruction::new(Opcodes::LD_U128, Some(*value), None),
+        Bytecode::CastU8 => Instruction::new(Opcodes::CAST_U8, None, None),
+        Bytecode::CastU64 => Instruction::new(Opcodes::CAST_U64, None, None),
+        Bytecode::CastU128 => Instruction::new(Opcodes::CAST_U128, None, None),
+        Bytecode::LdConst(const_idx) => Instruction::new(Opcodes::LD_CONST, Some(const_idx.0 as u128), None),
+        Bytecode::LdTrue => Instruction::new(Opcodes::LD_TRUE, None, None),
+        Bytecode::LdFalse => Instruction::new(Opcodes::LD_FALSE, None, None),
+        Bytecode::CopyLoc(local_idx) => Instruction::new(Opcodes::COPY_LOC, Some(*local_idx as u128), None),
+        Bytecode::MoveLoc(local_idx) => Instruction::new(Opcodes::MOVE_LOC, Some(*local_idx as u128), None),
+        Bytecode::StLoc(local_idx) => Instruction::new(Opcodes::ST_LOC, Some(*local_idx as u128), None),
+        Bytecode::MutBorrowLoc(local_idx) => Instruction::new(Opcodes::MUT_BORROW_LOC, Some(*local_idx as u128), None),
+        Bytecode::ImmBorrowLoc(local_idx) => Instruction::new(Opcodes::IMM_BORROW_LOC, Some(*local_idx as u128), None),
+        Bytecode::MutBorrowField(field_idx) => Instruction::new(Opcodes::MUT_BORROW_FIELD, Some(field_idx.0 as u128), None),
+        Bytecode::MutBorrowFieldGeneric(field_idx) => Instruction::new(Opcodes::MUT_BORROW_FIELD_GENERIC, Some(field_idx.0 as u128), None),
+        Bytecode::ImmBorrowField(field_idx) => Instruction::new(Opcodes::IMM_BORROW_FIELD, Some(field_idx.0 as u128), None),
+        Bytecode::ImmBorrowFieldGeneric(field_idx) => Instruction::new(Opcodes::IMM_BORROW_FIELD_GENERIC, Some(field_idx.0 as u128), None),
+        Bytecode::Call(method_idx) => Instruction::new(Opcodes::CALL, Some(method_idx.0 as u128), None),
+        Bytecode::Pack(class_idx) => Instruction::new(Opcodes::PACK, Some(class_idx.0 as u128), None),
+        Bytecode::Unpack(class_idx) => Instruction::new(Opcodes::UNPACK, Some(class_idx.0 as u128), None),
+        Bytecode::CallGeneric(method_idx) => Instruction::new(Opcodes::CALL_GENERIC, Some(method_idx.0 as u128), None),
+        Bytecode::PackGeneric(class_idx) => Instruction::new(Opcodes::PACK_GENERIC, Some(class_idx.0 as u128), None),
+        Bytecode::UnpackGeneric(class_idx) => Instruction::new(Opcodes::UNPACK_GENERIC, Some(class_idx.0 as u128), None),
+        Bytecode::ReadRef => Instruction::new(Opcodes::READ_REF, None, None),
+        Bytecode::WriteRef => Instruction::new(Opcodes::WRITE_REF, None, None),
+        Bytecode::Add => Instruction::new(Opcodes::ADD, None, None),
+        Bytecode::Sub => Instruction::new(Opcodes::SUB, None, None),
+        Bytecode::Mul => Instruction::new(Opcodes::MUL, None, None),
+        Bytecode::Mod => Instruction::new(Opcodes::MOD, None, None),
+        Bytecode::Div => Instruction::new(Opcodes::DIV, None, None),
+        Bytecode::BitOr => Instruction::new(Opcodes::BIT_OR, None, None),
+        Bytecode::BitAnd => Instruction::new(Opcodes::BIT_AND, None, None),
+        Bytecode::Xor => Instruction::new(Opcodes::XOR, None, None),
+        Bytecode::Shl => Instruction::new(Opcodes::SHL, None, None),
+        Bytecode::Shr => Instruction::new(Opcodes::SHR, None, None),
+        Bytecode::Or => Instruction::new(Opcodes::OR, None, None),
+        Bytecode::And => Instruction::new(Opcodes::AND, None, None),
+        Bytecode::Not => Instruction::new(Opcodes::NOT, None, None),
+        Bytecode::Eq => Instruction::new(Opcodes::EQ, None, None),
+        Bytecode::Neq => Instruction::new(Opcodes::NEQ, None, None),
+        Bytecode::Lt => Instruction::new(Opcodes::LT, None, None),
+        Bytecode::Gt => Instruction::new(Opcodes::GT, None, None),
+        Bytecode::Le => Instruction::new(Opcodes::LE, None, None),
+        Bytecode::Ge => Instruction::new(Opcodes::GE, None, None),
+        Bytecode::Abort => Instruction::new(Opcodes::ABORT, None, None),
+        Bytecode::Nop => Instruction::new(Opcodes::NOP, None, None),
+        Bytecode::Exists(class_idx) => Instruction::new(Opcodes::EXISTS, Some(class_idx.0 as u128), None),
+        Bytecode::MutBorrowGlobal(class_idx) => Instruction::new(Opcodes::MUT_BORROW_GLOBAL, Some(class_idx.0 as u128), None),
+        Bytecode::ImmBorrowGlobal(class_idx) => Instruction::new(Opcodes::IMM_BORROW_GLOBAL, Some(class_idx.0 as u128), None),
+        Bytecode::MoveFrom(class_idx) => Instruction::new(Opcodes::MOVE_FROM, Some(class_idx.0 as u128), None),
+        Bytecode::MoveTo(class_idx) => Instruction::new(Opcodes::MOVE_TO, Some(class_idx.0 as u128), None),
+        Bytecode::ExistsGeneric(class_idx) => Instruction::new(Opcodes::EXISTS_GENERIC, Some(class_idx.0 as u128), None),
+        Bytecode::MutBorrowGlobalGeneric(class_idx) => Instruction::new(Opcodes::MUT_BORROW_GLOBAL_GENERIC, Some(class_idx.0 as u128), None),
+        Bytecode::ImmBorrowGlobalGeneric(class_idx) => Instruction::new(Opcodes::IMM_BORROW_GLOBAL_GENERIC, Some(class_idx.0 as u128), None),
+        Bytecode::MoveFromGeneric(class_idx) => Instruction::new(Opcodes::MOVE_FROM_GENERIC, Some(class_idx.0 as u128), None),
+        Bytecode::MoveToGeneric(class_idx) => Instruction::new(Opcodes::MOVE_TO_GENERIC, Some(class_idx.0 as u128), None),
+        Bytecode::VecPack(sig_idx, num) => Instruction::new(Opcodes::VEC_PACK, Some(sig_idx.0 as u128), Some(*num as u128)),
+        Bytecode::VecLen(sig_idx) => Instruction::new(Opcodes::VEC_LEN, Some(sig_idx.0 as u128), None),
+        Bytecode::VecImmBorrow(sig_idx) => Instruction::new(Opcodes::VEC_IMM_BORROW, Some(sig_idx.0 as u128), None),
+        Bytecode::VecMutBorrow(sig_idx) => Instruction::new(Opcodes::VEC_MUT_BORROW, Some(sig_idx.0 as u128), None),
+        Bytecode::VecPushBack(sig_idx) => Instruction::new(Opcodes::VEC_PUSH_BACK, Some(sig_idx.0 as u128), None),
+        Bytecode::VecPopBack(sig_idx) => Instruction::new(Opcodes::VEC_POP_BACK, Some(sig_idx.0 as u128), None),
+        Bytecode::VecUnpack(sig_idx, num) => Instruction::new(Opcodes::VEC_UNPACK, Some(sig_idx.0 as u128), Some(*num as u128)),
+        Bytecode::VecSwap(sig_idx) => Instruction::new(Opcodes::VEC_SWAP, Some(sig_idx.0 as u128), None),
+        Bytecode::LdU16(value) => Instruction::new(Opcodes::LD_U16, Some(*value as u128), None),
+        Bytecode::LdU32(value) => Instruction::new(Opcodes::LD_U32, Some(*value as u128), None),
+        Bytecode::LdU256(value) => {
+            let hi = (*value >> 128).unchecked_as_u128();
+            let lo = (*value << 128u8 >> 128).unchecked_as_u128();
+            Instruction::new(Opcodes::LD_U256, Some(lo), Some(hi))
+        },
+        Bytecode::CastU16 => Instruction::new(Opcodes::CAST_U16, None, None),
+        Bytecode::CastU32 => Instruction::new(Opcodes::CAST_U32, None, None),
+        Bytecode::CastU256 => Instruction::new(Opcodes::CAST_U256, None, None),
+    }
 }
