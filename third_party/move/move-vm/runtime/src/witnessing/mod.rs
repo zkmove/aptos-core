@@ -16,10 +16,18 @@ pub struct CallerInfo {
     pub function_id: usize,
     pub pc: u16,
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EntryCall {
+    pub module_id: Option<ModuleId>,
+    pub function_index: usize,
+    pub args: Vec<ValueItems>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Operation {
     Start {
-        args: Vec<ValueItems>,
+        entry_call: EntryCall,
     },
     Pop {
         poped_value: ValueItems,

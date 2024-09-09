@@ -19,7 +19,7 @@ use crate::{
     loader::Resolver,
 };
 use crate::loader::Function;
-use crate::witnessing::{BinaryIntegerOperationType, CallerInfo, Footprint, Operation};
+use crate::witnessing::{BinaryIntegerOperationType, CallerInfo, EntryCall, Footprint, Operation};
 use crate::witnessing::traced_value::{Integer, Reference, ReferenceValueVisitor, TracedValue};
 
 #[derive(Default, Clone)]
@@ -76,7 +76,7 @@ impl FootprintState {
 
 pub(crate) fn footprint_args_processing(interp: &mut Interpreter, function: &Arc<Function>, args: &Vec<Value>) {
     let module_id = function.module_id();
-    let function_id = function.index().into_index();
+    let function_index = function.index().into_index();
     let mut values = Vec::new();
     for (i, value) in args.into_iter().enumerate() {
         let traced_value = TracedValue::from(value);
@@ -89,15 +89,19 @@ pub(crate) fn footprint_args_processing(interp: &mut Interpreter, function: &Arc
     }
     interp.footprints.data.push(Footprint {
         op: 0,
-        module_id: module_id.cloned(),
-        function_id,
+        module_id: None,
+        function_id: 0,
         pc: 0,
         frame_index: 0,
         stack_pointer: 0,
         aux0: None,
         aux1: None,
         data: Operation::Start {
-            args: values,
+            entry_call: EntryCall {
+                module_id: module_id.cloned(),
+                function_index,
+                args: values,
+            }
         },
     });
 }
