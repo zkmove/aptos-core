@@ -69,22 +69,22 @@ pub enum Operation {
     },
     Pack {
         sd_idx: u16,
-        num: u16,
+        num: u64,
         args: Vec<ValueItems>,
     },
     PackGeneric {
         si_idx: u16,
-        num: u16,
+        num: u64,
         args: Vec<ValueItems>,
     },
     Unpack {
         sd_idx: u16,
-        num: u16,
+        num: u64,
         arg: ValueItems,
     },
     UnpackGeneric {
         sd_idx: u16,
-        num: u16,
+        num: u64,
         arg: ValueItems,
     },
     ReadRef {

@@ -316,7 +316,7 @@ pub(crate) fn footprinting(
 
             Operation::Pack {
                 sd_idx: sd_idx.0,
-                num: field_count,
+                num: field_count as u64,
                 args: interp
                     .operand_stack
                     .last_n(field_count as usize)?
@@ -328,7 +328,7 @@ pub(crate) fn footprinting(
             let field_count = resolver.field_instantiation_count(*si_idx);
             Operation::PackGeneric {
                 si_idx: si_idx.0,
-                num: field_count,
+                num: field_count as u64,
                 args: interp
                     .operand_stack
                     .last_n(field_count as usize)?
@@ -340,7 +340,7 @@ pub(crate) fn footprinting(
             let field_count = resolver.field_count(*sd_idx);
             Operation::Unpack {
                 sd_idx: sd_idx.0,
-                num: field_count,
+                num: field_count as u64,
                 arg: interp
                     .operand_stack
                     .last_n(1)?
@@ -353,7 +353,7 @@ pub(crate) fn footprinting(
             let field_count = resolver.field_instantiation_count(*sd_idx);
             Operation::UnpackGeneric {
                 sd_idx: sd_idx.0,
-                num: field_count,
+                num: field_count as u64,
                 arg: interp
                     .operand_stack
                     .last_n(1)?
