@@ -1,11 +1,13 @@
+use std::collections::BTreeMap;
+
+use serde::{Deserialize, Serialize};
+
 use move_core_types::{account_address::AccountAddress, u256, u256::U256};
 use move_vm_types::{
     delayed_values::delayed_field_id::DelayedFieldID,
     values::{IntegerValue, Value},
     views::{ValueView, ValueVisitor},
 };
-use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum SimpleValue {
@@ -147,14 +149,27 @@ pub struct TracedValue {
 pub type ValueItems = Vec<ValueItem>;
 
 impl TracedValue {
-    pub fn items(&self) -> Vec<ValueItem> {
-        assert!(self.visit_stack.is_empty());
-        self.items.clone()
+    pub fn items(self) -> Vec<ValueItem> {
+        self.into_index_and_items().1
     }
+    //
+    // pub fn container_sub_indexes(&self) -> BTreeMap<usize, Vec<usize>> {
+    //     assert!(self.visit_stack.is_empty());
+    //     self.container_sub_indexes.clone()
+    // }
 
-    pub fn container_sub_indexes(&self) -> BTreeMap<usize, Vec<usize>> {
+    pub fn into_index_and_items(mut self) -> (BTreeMap<usize, Vec<usize>>, Vec<ValueItem>) {
+        while self
+            .visit_stack
+            .last()
+            .filter(|s| s.counter == s.len)
+            .is_some()
+        {
+            self.visit_stack.pop();
+        }
+
         assert!(self.visit_stack.is_empty());
-        self.container_sub_indexes.clone()
+        (self.container_sub_indexes, self.items)
     }
 }
 

@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
+
 use move_binary_format::{
     errors::PartialVMResult,
     file_format::Bytecode,
@@ -80,12 +81,13 @@ pub(crate) fn footprint_args_processing(interp: &mut Interpreter, function: &Arc
     let mut values = Vec::new();
     for (i, value) in args.into_iter().enumerate() {
         let traced_value = TracedValue::from(value);
+        let (value_indexes, value_items) = traced_value.into_index_and_items();
         interp.footprints.state.add_local(
             0,
             i,
-            traced_value.container_sub_indexes(),
+            value_indexes,
         );
-        values.push(traced_value.items());
+        values.push(value_items);
     }
     interp.footprints.data.push(Footprint {
         op: 0,
@@ -266,13 +268,13 @@ pub(crate) fn footprinting(
 
             let new_value = interp.operand_stack.last_n(1)?.last().unwrap();
             let new_value: TracedValue = new_value.into();
-
+            let (new_value_indexes, new_value_items) = new_value.into_index_and_items();
             // value stored to loc only have 1 reference on it
             // so we can hook here to index every sub items by it rc-ptr.
             interp.footprints.state.add_local(
                 frame_index,
                 *idx as usize,
-                new_value.container_sub_indexes(),
+                new_value_indexes,
             );
             let old_local = if locals.is_invalid(*idx as usize)? {
                 None
@@ -283,7 +285,7 @@ pub(crate) fn footprinting(
             Operation::StLoc {
                 local_index: *idx,
                 old_local: old_local.map(|v| TracedValue::from(&v).items()),
-                new_value: new_value.items(),
+                new_value: new_value_items,
             }
         },
         Bytecode::Call(fh_idx) => {
@@ -314,6 +316,7 @@ pub(crate) fn footprinting(
 
             Operation::Pack {
                 sd_idx: sd_idx.0,
+                num: field_count,
                 args: interp
                     .operand_stack
                     .last_n(field_count as usize)?
@@ -325,6 +328,7 @@ pub(crate) fn footprinting(
             let field_count = resolver.field_instantiation_count(*si_idx);
             Operation::PackGeneric {
                 si_idx: si_idx.0,
+                num: field_count,
                 args: interp
                     .operand_stack
                     .last_n(field_count as usize)?
@@ -332,23 +336,31 @@ pub(crate) fn footprinting(
                     .collect::<Vec<_>>(),
             }
         },
-        Bytecode::Unpack(sd_idx) => Operation::Unpack {
-            sd_idx: sd_idx.0,
-            arg: interp
-                .operand_stack
-                .last_n(1)?
-                .last()
-                .map(|t| TracedValue::from(t).items())
-                .unwrap(),
+        Bytecode::Unpack(sd_idx) => {
+            let field_count = resolver.field_count(*sd_idx);
+            Operation::Unpack {
+                sd_idx: sd_idx.0,
+                num: field_count,
+                arg: interp
+                    .operand_stack
+                    .last_n(1)?
+                    .last()
+                    .map(|t| TracedValue::from(t).items())
+                    .unwrap(),
+            }
         },
-        Bytecode::UnpackGeneric(sd_idx) => Operation::UnpackGeneric {
-            sd_idx: sd_idx.0,
-            arg: interp
-                .operand_stack
-                .last_n(1)?
-                .last()
-                .map(|t| TracedValue::from(t).items())
-                .unwrap(),
+        Bytecode::UnpackGeneric(sd_idx) => {
+            let field_count = resolver.field_instantiation_count(*sd_idx);
+            Operation::UnpackGeneric {
+                sd_idx: sd_idx.0,
+                num: field_count,
+                arg: interp
+                    .operand_stack
+                    .last_n(1)?
+                    .last()
+                    .map(|t| TracedValue::from(t).items())
+                    .unwrap(),
+            }
         },
         Bytecode::ReadRef => {
             let reference = interp
