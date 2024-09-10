@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::ops::Shl;
 
 use serde::{Deserialize, Serialize};
 
@@ -148,6 +149,7 @@ pub struct TracedValue {
 
 pub type ValueItems = Vec<ValueItem>;
 
+
 impl TracedValue {
     pub fn items(self) -> Vec<ValueItem> {
         self.into_index_and_items().1
@@ -169,7 +171,47 @@ impl TracedValue {
         }
 
         assert!(self.visit_stack.is_empty());
+        add_flen(&mut self.items);
         (self.container_sub_indexes, self.items)
+    }
+}
+
+pub(crate) fn add_flen(items: &mut ValueItems) {
+    let mut builder = trie_rs::TrieBuilder::new();
+
+    /// strip the tail 0s
+    #[inline]
+    fn strip_zero(v: &mut Vec<usize>) {
+        while let Some(e) = v.pop() {
+            if e != 0 {
+                v.push(e);
+                break;
+            }
+        }
+    }
+
+    for x in items.iter_mut() {
+        strip_zero(&mut x.sub_index);
+        builder.push(&x.sub_index);
+    }
+    let tree = builder.build();
+
+    for item in items.iter_mut() {
+        let prefixed_node_num = tree
+            .predictive_search(&item.sub_index)
+            .collect::<Vec<Vec<usize>>>()
+            .len() as u64;
+        if item.header {
+            match &item.value {
+                SimpleValue::U64(len) => {
+                    item.value = SimpleValue::U256(U256::from(*len).shl(128u32) + prefixed_node_num.into());
+                },
+                SimpleValue::U256(_) => {},
+                _ => unreachable!()
+            };
+        } else {
+            debug_assert_eq!(prefixed_node_num, 1);
+        }
     }
 }
 

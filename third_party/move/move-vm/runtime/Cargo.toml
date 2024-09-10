@@ -26,7 +26,7 @@ sha3 = { workspace = true }
 tracing = { workspace = true }
 triomphe = { workspace = true }
 typed-arena = { workspace = true }
-
+trie-rs = { workspace = true }
 move-bytecode-verifier = { path = "../../move-bytecode-verifier" }
 move-core-types = { path = "../../move-core/types" }
 move-vm-types = { path = "../types" }
