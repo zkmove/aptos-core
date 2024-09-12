@@ -371,7 +371,8 @@ pub(crate) fn footprinting(
                 .copy_value()?;
             let mut visitor = ReferenceValueVisitor::default();
             reference.visit(&mut visitor);
-            let pointer = visitor.reference_pointer;
+            let (pointer, child_index) = visitor.into_ref_and_child();
+
             let value = reference
                 .value_as::<move_vm_types::values::Reference>()?
                 .read_ref()?;
@@ -382,7 +383,7 @@ pub(crate) fn footprinting(
                     .reverse_local_value_addressings
                     .get(&pointer)
                     .cloned()
-                    .unwrap(),
+                    .unwrap().ref_child(child_index.map(|i| i + 1).unwrap_or_default()),
                 value: TracedValue::from(&value).items(),
             }
         },
@@ -393,9 +394,13 @@ pub(crate) fn footprinting(
                 .last()
                 .unwrap()
                 .copy_value()?;
-            let mut visitor = ReferenceValueVisitor::default();
-            reference.visit(&mut visitor);
-            let pointer = visitor.reference_pointer;
+
+            let (pointer, child_index) = {
+                let mut visitor = ReferenceValueVisitor::default();
+                reference.visit(&mut visitor);
+                visitor.into_ref_and_child()
+            };
+
             let old_value = reference
                 .value_as::<move_vm_types::values::Reference>()?
                 .read_ref()?;
@@ -412,7 +417,7 @@ pub(crate) fn footprinting(
                     .reverse_local_value_addressings
                     .get(&pointer)
                     .cloned()
-                    .unwrap(),
+                    .unwrap().ref_child(child_index.map(|i| i + 1).unwrap_or_default()),
                 old_value: TracedValue::from(&old_value).items(),
                 new_value: TracedValue::from(&new_value).items(),
             }
@@ -666,9 +671,12 @@ pub(crate) fn footprinting(
                 .collect::<PartialVMResult<Vec<_>>>()?
                 .pop()
                 .unwrap();
-            let mut reference_visitor = ReferenceValueVisitor::default();
-            vec_ref.visit(&mut reference_visitor);
-            assert!(reference_visitor.indexed.is_none());
+            let (reference_pointer, child_index) = {
+                let mut visitor = ReferenceValueVisitor::default();
+                vec_ref.visit(&mut visitor);
+                visitor.into_ref_and_child()
+            };
+            assert!(child_index.is_none());
 
             let vec_ref = vec_ref.value_as::<VectorRef>()?;
 
@@ -686,7 +694,7 @@ pub(crate) fn footprinting(
                     .footprints
                     .state
                     .reverse_local_value_addressings
-                    .get(&reference_visitor.reference_pointer)
+                    .get(&reference_pointer)
                     .cloned()
                     .unwrap(),
                 len: len.value_as()?,
@@ -700,9 +708,12 @@ pub(crate) fn footprinting(
                 .collect::<PartialVMResult<Vec<_>>>()?;
             let idx: u64 = values.pop().unwrap().value_as()?;
             let vec_ref = values.pop().unwrap();
-            let mut reference_visitor = ReferenceValueVisitor::default();
-            vec_ref.visit(&mut reference_visitor);
-            assert!(reference_visitor.indexed.is_none());
+            let (reference_pointer, child_index) = {
+                let mut visitor = ReferenceValueVisitor::default();
+                vec_ref.visit(&mut visitor);
+                visitor.into_ref_and_child()
+            };
+            assert!(child_index.is_none());
 
             // let vec_ref = vec_ref.value_as::<VectorRef>()?;
             // let elem = {
@@ -721,7 +732,7 @@ pub(crate) fn footprinting(
                     .footprints
                     .state
                     .reverse_local_value_addressings
-                    .get(&reference_visitor.reference_pointer)
+                    .get(&reference_pointer)
                     .cloned()
                     .unwrap(),
             }
@@ -735,9 +746,12 @@ pub(crate) fn footprinting(
             let elem = values.pop().unwrap();
             let vec_ref = values.pop().unwrap();
 
-            let mut reference_visitor = ReferenceValueVisitor::default();
-            vec_ref.visit(&mut reference_visitor);
-            assert!(reference_visitor.indexed.is_none());
+            let (reference_pointer, child_index) = {
+                let mut visitor = ReferenceValueVisitor::default();
+                vec_ref.visit(&mut visitor);
+                visitor.into_ref_and_child()
+            };
+            assert!(child_index.is_none());
 
             let vec_ref = vec_ref.value_as::<VectorRef>()?;
             let (ty, _ty_count) =
@@ -754,7 +768,7 @@ pub(crate) fn footprinting(
                     .footprints
                     .state
                     .reverse_local_value_addressings
-                    .get(&reference_visitor.reference_pointer)
+                    .get(&reference_pointer)
                     .cloned()
                     .unwrap(),
 
@@ -769,9 +783,13 @@ pub(crate) fn footprinting(
                 .map(|v| v.copy_value())
                 .collect::<PartialVMResult<Vec<_>>>()?;
             let vec_ref = values.pop().unwrap();
-            let mut reference_visitor = ReferenceValueVisitor::default();
-            vec_ref.visit(&mut reference_visitor);
-            assert!(reference_visitor.indexed.is_none());
+            let (reference_pointer, child_index) = {
+                let mut visitor = ReferenceValueVisitor::default();
+                vec_ref.visit(&mut visitor);
+                visitor.into_ref_and_child()
+            };
+            assert!(child_index.is_none());
+
 
             let vec_ref = vec_ref.value_as::<VectorRef>()?;
             let (ty, _ty_count) =
@@ -791,7 +809,7 @@ pub(crate) fn footprinting(
                     .footprints
                     .state
                     .reverse_local_value_addressings
-                    .get(&reference_visitor.reference_pointer)
+                    .get(&reference_pointer)
                     .cloned()
                     .unwrap(),
 
@@ -808,9 +826,12 @@ pub(crate) fn footprinting(
             let idx2: u64 = values.pop().unwrap().value_as()?;
             let idx1: u64 = values.pop().unwrap().value_as()?;
             let vec_ref = values.pop().unwrap();
-            let mut reference_visitor = ReferenceValueVisitor::default();
-            vec_ref.visit(&mut reference_visitor);
-            assert!(reference_visitor.indexed.is_none());
+            let (reference_pointer, child_index) = {
+                let mut visitor = ReferenceValueVisitor::default();
+                vec_ref.visit(&mut visitor);
+                visitor.into_ref_and_child()
+            };
+            assert!(child_index.is_none());
 
             let vec_ref = vec_ref.value_as::<VectorRef>()?;
             let (ty, _ty_count) =
@@ -819,7 +840,7 @@ pub(crate) fn footprinting(
                     .get_signature_index_type(*si, resolver, &frame.ty_args)?;
             let vec_len: u64 = vec_ref.len(ty)?.value_as()?;
             let idx2_elem = vec_ref.borrow_elem(idx2 as usize, ty)?.value_as::<move_vm_types::values::Reference>()?.read_ref()?;
-            let idx1_elem = vec_ref.borrow_elem(idx2 as usize, ty)?.value_as::<move_vm_types::values::Reference>()?.read_ref()?;
+            let idx1_elem = vec_ref.borrow_elem(idx1 as usize, ty)?.value_as::<move_vm_types::values::Reference>()?.read_ref()?;
 
             Operation::VecSwap {
                 si: si.0,
@@ -829,7 +850,7 @@ pub(crate) fn footprinting(
                     .footprints
                     .state
                     .reverse_local_value_addressings
-                    .get(&reference_visitor.reference_pointer)
+                    .get(&reference_pointer)
                     .cloned()
                     .unwrap(),
                 idx2,

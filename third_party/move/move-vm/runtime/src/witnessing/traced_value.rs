@@ -116,6 +116,7 @@ pub struct Reference {
     pub sub_index: Vec<usize>,
 }
 
+
 impl Reference {
     pub fn new(frame_index: usize, local_index: usize, sub_index: Vec<usize>) -> Self {
         Reference {
@@ -123,6 +124,17 @@ impl Reference {
             local_index,
             sub_index,
         }
+    }
+
+    pub fn ref_child(mut self, child: usize) -> Self {
+        while let Some(v) = self.sub_index.pop() {
+            if v != 0 {
+                self.sub_index.push(v);
+                break;
+            }
+        }
+        self.sub_index.push(child);
+        self
     }
 }
 
@@ -192,11 +204,26 @@ pub(crate) fn add_flen(items: &mut ValueItems) {
 
     for x in items.iter_mut() {
         strip_zero(&mut x.sub_index);
-        builder.push(&x.sub_index);
+        // skip root
+        if !x.sub_index.is_empty() {
+            builder.push(dbg!(&x.sub_index));
+        }
     }
     let tree = builder.build();
-
+    let item_num = items.len() as u64;
     for item in items.iter_mut() {
+        if item.sub_index.is_empty() {
+            if item.header {
+                match &item.value {
+                    SimpleValue::U64(len) => {
+                        item.value = SimpleValue::U256(U256::from(*len).shl(128u32) + item_num.into());
+                    },
+                    SimpleValue::U256(_) => {},
+                    _ => unreachable!()
+                };
+            }
+            continue;
+        }
         let prefixed_node_num = tree
             .predictive_search(&item.sub_index)
             .collect::<Vec<Vec<usize>>>()
@@ -358,8 +385,14 @@ impl ValueVisitor for TracedValue {
 
 #[derive(Copy, Clone, Default)]
 pub(crate) struct ReferenceValueVisitor {
-    pub(crate) reference_pointer: usize,
-    pub(crate) indexed: Option<usize>,
+    reference_pointer: usize,
+    indexed: Option<usize>,
+}
+
+impl ReferenceValueVisitor {
+    pub fn into_ref_and_child(self) -> (usize, Option<usize>) {
+        (self.reference_pointer, self.indexed)
+    }
 }
 
 impl ValueVisitor for ReferenceValueVisitor {
