@@ -3907,6 +3907,12 @@ impl Value {
     pub fn copy_value(&self) -> PartialVMResult<Self> {
         Ok(Value(self.0.copy_value()?))
     }
+    pub fn is_ref_value(&self) -> bool {
+        match &self.0 {
+            ValueImpl::ContainerRef(_) | ValueImpl::IndexedRef(_) => true,
+            _ => false
+        }
+    }
 }
 
 impl StructRef {
