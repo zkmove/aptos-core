@@ -146,15 +146,78 @@ pub struct ValueItem {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-struct FrameState {
+struct LevelState {
     depth: usize,
     len: usize,
     counter: usize,
 }
 
-#[derive(Clone, Default)]
 pub struct TracedValue {
-    visit_stack: Vec<FrameState>,
+    pub items: Vec<ValueItem>,
+    pub container_sub_indexes: BTreeMap<usize, Vec<usize>>,
+}
+
+#[derive(Clone)]
+pub struct TracedValueBuilder {
+    visitor: Result<PlainValueVisitor, ReferenceValueVisitor>,
+}
+
+
+impl TracedValueBuilder {
+    pub fn new(value: &Value) -> Self {
+        Self {
+            visitor: if !value.is_ref_value() {
+                let mut visitor = PlainValueVisitor::default();
+                value.visit(&mut visitor);
+                Ok(visitor)
+            } else {
+                let mut visitor = ReferenceValueVisitor::default();
+                value.visit(&mut visitor);
+                Err(visitor)
+            }
+        }
+    }
+
+    pub fn is_ref_value(&self) -> bool {
+        self.visitor.is_err()
+    }
+    pub fn build_as_reference(self, reverse_local_value_addressings: &BTreeMap<usize, Reference>) -> Option<Reference> {
+        match self.visitor {
+            Ok(_) => None,
+            Err(visitor) => {
+                let parent = reverse_local_value_addressings.get(&visitor.reference_pointer).expect("reference by pointer shold exist").clone();
+                Some(parent.ref_child(visitor.indexed.map(|i| i + 1).unwrap_or_default()))
+            }
+        }
+    }
+    pub fn build_as_plain_value(self) -> Option<TracedValue> {
+        match self.visitor {
+            Ok(visitor) => Some(visitor.get_trace_value()),
+            _ => None
+        }
+    }
+    pub fn build(self, reverse_local_value_addressings: &BTreeMap<usize, Reference>) -> TracedValue {
+        match self.visitor {
+            Ok(visitor) => { visitor.get_trace_value() },
+            Err(visitor) => {
+                let parent = reverse_local_value_addressings.get(&visitor.reference_pointer).expect("reference by pointer shold exist").clone();
+                let reference = parent.ref_child(visitor.indexed.map(|i| i + 1).unwrap_or_default());
+                TracedValue {
+                    items: vec![ValueItem {
+                        sub_index: vec![],
+                        header: false,
+                        value: SimpleValue::Reference(reference),
+                    }],
+                    container_sub_indexes: Default::default(),
+                }
+            }
+        }
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct PlainValueVisitor {
+    visit_stack: Vec<LevelState>,
     items: Vec<ValueItem>,
     container_sub_indexes: BTreeMap<usize, Vec<usize>>,
 }
@@ -162,17 +225,8 @@ pub struct TracedValue {
 pub type ValueItems = Vec<ValueItem>;
 
 
-impl TracedValue {
-    pub fn items(self) -> Vec<ValueItem> {
-        self.into_index_and_items().1
-    }
-    //
-    // pub fn container_sub_indexes(&self) -> BTreeMap<usize, Vec<usize>> {
-    //     assert!(self.visit_stack.is_empty());
-    //     self.container_sub_indexes.clone()
-    // }
-
-    pub fn into_index_and_items(mut self) -> (BTreeMap<usize, Vec<usize>>, Vec<ValueItem>) {
+impl PlainValueVisitor {
+    fn get_trace_value(mut self) -> TracedValue {
         while self
             .visit_stack
             .last()
@@ -184,11 +238,11 @@ impl TracedValue {
 
         assert!(self.visit_stack.is_empty());
         add_flen(&mut self.items);
-        (self.container_sub_indexes, self.items)
+        TracedValue { container_sub_indexes: self.container_sub_indexes, items: self.items }
     }
 }
 
-pub(crate) fn add_flen(items: &mut ValueItems) {
+fn add_flen(items: &mut ValueItems) {
     let mut builder = trie_rs::TrieBuilder::new();
 
     /// strip the tail 0s
@@ -206,7 +260,7 @@ pub(crate) fn add_flen(items: &mut ValueItems) {
         strip_zero(&mut x.sub_index);
         // skip root
         if !x.sub_index.is_empty() {
-            builder.push(dbg!(&x.sub_index));
+            builder.push(&x.sub_index);
         }
     }
     let tree = builder.build();
@@ -242,21 +296,10 @@ pub(crate) fn add_flen(items: &mut ValueItems) {
     }
 }
 
-impl From<&Value> for TracedValue {
-    fn from(value: &Value) -> Self {
-        let mut this = Self::default();
-        value.visit(&mut this);
-        this
-    }
-}
-
-impl TracedValue {
+impl PlainValueVisitor {
     pub fn current_sub_index(&self) -> Vec<usize> {
         self.visit_stack.iter().map(|s| s.counter).collect()
     }
-}
-
-impl TracedValue {
     fn visit_simple(&mut self, depth: usize, value: SimpleValue) {
         let sub_index = match self.visit_stack.last_mut() {
             Some(frame) => {
@@ -287,7 +330,7 @@ impl TracedValue {
     }
 }
 
-impl ValueVisitor for TracedValue {
+impl ValueVisitor for PlainValueVisitor {
     fn visit_delayed(&mut self, _depth: usize, _id: DelayedFieldID) {
         unreachable!()
     }
@@ -340,21 +383,12 @@ impl ValueVisitor for TracedValue {
     }
 
     fn visit_struct(&mut self, depth: usize, len: usize) -> bool {
-        match self.visit_stack.last_mut() {
-            Some(last_frame) => {
-                last_frame.counter += 1;
-                assert_eq!(last_frame.depth + 1, depth);
-            },
-            None => {
-                assert_eq!(depth, 0);
-            },
-        }
-        let new_frame = FrameState {
+        let new_level = LevelState {
             depth,
             len,
             counter: 0,
         };
-        self.visit_stack.push(new_frame);
+        self.visit_stack.push(new_level);
         self.items.push(ValueItem {
             header: true,
             sub_index: self.current_sub_index(),
@@ -364,7 +398,7 @@ impl ValueVisitor for TracedValue {
     }
 
     fn visit_vec(&mut self, depth: usize, len: usize) -> bool {
-        let new_frame = FrameState {
+        let new_frame = LevelState {
             depth,
             len,
             counter: 0,
@@ -384,16 +418,16 @@ impl ValueVisitor for TracedValue {
 }
 
 #[derive(Copy, Clone, Default)]
-pub(crate) struct ReferenceValueVisitor {
+struct ReferenceValueVisitor {
     reference_pointer: usize,
     indexed: Option<usize>,
 }
-
-impl ReferenceValueVisitor {
-    pub fn into_ref_and_child(self) -> (usize, Option<usize>) {
-        (self.reference_pointer, self.indexed)
-    }
-}
+//
+// impl ReferenceValueVisitor {
+//     pub fn into_ref_and_child(self) -> (usize, Option<usize>) {
+//         (self.reference_pointer, self.indexed)
+//     }
+// }
 
 impl ValueVisitor for ReferenceValueVisitor {
     fn visit_delayed(&mut self, _depth: usize, _id: DelayedFieldID) {}

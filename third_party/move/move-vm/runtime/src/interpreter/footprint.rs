@@ -1,27 +1,19 @@
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use move_binary_format::{
-    errors::PartialVMResult,
-    file_format::Bytecode,
+    errors::PartialVMResult, file_format::Bytecode, file_format_common::Opcodes,
     internals::ModuleIndex,
 };
-use move_binary_format::file_format_common::Opcodes;
-use move_vm_types::{
-    values::{IntegerValue, StructRef, Value, VectorRef, VMValueCast},
-    views::ValueView,
-};
+use move_vm_types::values::{IntegerValue, StructRef, Value, VectorRef, VMValueCast};
 
 use crate::{
-    interpreter::{
-        Frame,
-        Interpreter
+    interpreter::{Frame, Interpreter},
+    loader::{Function, Resolver},
+    witnessing::{
+        BinaryIntegerOperationType,
+        CallerInfo, EntryCall, Footprint, Operation, traced_value::{Integer, Reference, TracedValue, TracedValueBuilder},
     },
-    loader::Resolver,
 };
-use crate::loader::Function;
-use crate::witnessing::{BinaryIntegerOperationType, CallerInfo, EntryCall, Footprint, Operation};
-use crate::witnessing::traced_value::{Integer, Reference, ReferenceValueVisitor, TracedValue};
 
 #[derive(Default, Clone)]
 pub(crate) struct Footprints {
@@ -50,11 +42,10 @@ impl FootprintState {
             .or_default()
             .insert(local_index, sub_indexes.clone());
         for (raw_address, sub_index) in sub_indexes {
-            self.reverse_local_value_addressings
-                .insert(
-                    raw_address,
-                    Reference::new(frame_index, local_index, sub_index),
-                );
+            self.reverse_local_value_addressings.insert(
+                raw_address,
+                Reference::new(frame_index, local_index, sub_index),
+            );
         }
     }
 
@@ -75,18 +66,21 @@ impl FootprintState {
     }
 }
 
-pub(crate) fn footprint_args_processing(interp: &mut Interpreter, function: &Arc<Function>, args: &Vec<Value>) {
+pub(crate) fn footprint_args_processing(
+    interp: &mut Interpreter,
+    function: &Arc<Function>,
+    args: &Vec<Value>,
+) {
     let module_id = function.module_id();
     let function_index = function.index().into_index();
     let mut values = Vec::new();
     for (i, value) in args.into_iter().enumerate() {
-        let traced_value = TracedValue::from(value);
-        let (value_indexes, value_items) = traced_value.into_index_and_items();
-        interp.footprints.state.add_local(
-            0,
-            i,
-            value_indexes,
-        );
+        let TracedValue {
+            items: value_items,
+            container_sub_indexes: value_indexes,
+        } = TracedValueBuilder::new(value)
+            .build(&interp.footprints.state.reverse_local_value_addressings);
+        interp.footprints.state.add_local(0, i, value_indexes);
         values.push(value_items);
     }
     interp.footprints.data.push(Footprint {
@@ -103,7 +97,7 @@ pub(crate) fn footprint_args_processing(interp: &mut Interpreter, function: &Arc
                 module_id: module_id.cloned(),
                 function_index,
                 args: values,
-            }
+            },
         },
     });
 }
@@ -137,17 +131,20 @@ pub(crate) fn footprinting(
         Bytecode::Pop => {
             let val = interp.operand_stack.last_n(1)?.last().unwrap();
             Operation::Pop {
-                poped_value: TracedValue::from(val).items(),
+                poped_value: TracedValueBuilder::new(val)
+                    .build_as_plain_value()
+                    .unwrap()
+                    .items,
             }
         },
         Bytecode::Ret => {
             let caller = _caller_frame.map(|caller| CallerInfo {
-                frame_index:
-                frame_index - 1,
+                frame_index: frame_index - 1,
                 module_id: caller.function.module_id().cloned(),
                 function_id: caller.function.index().into_index(),
                 pc: caller.pc,
             });
+            interp.footprints.state.remove_locals(frame_index);
             Operation::Ret { caller }
         },
         Bytecode::BrTrue(offset) => {
@@ -159,7 +156,10 @@ pub(crate) fn footprinting(
                 .copy_value()
                 .unwrap()
                 .value_as()?;
-            Operation::BrTrue { cond_val: val, code_offset: *offset }
+            Operation::BrTrue {
+                cond_val: val,
+                code_offset: *offset,
+            }
         },
         Bytecode::BrFalse(offset) => {
             let val = interp
@@ -169,7 +169,10 @@ pub(crate) fn footprinting(
                 .unwrap()
                 .copy_value()?
                 .cast()?;
-            Operation::BrFalse { cond_val: val, code_offset: *offset }
+            Operation::BrFalse {
+                cond_val: val,
+                code_offset: *offset,
+            }
         },
         Bytecode::Branch(offset) => Operation::Branch(*offset),
         Bytecode::LdU8(v) => Operation::LdSimple(Integer::U8(*v)),
@@ -180,7 +183,9 @@ pub(crate) fn footprinting(
         Bytecode::LdU256(v) => Operation::LdSimple(Integer::U256(*v)),
         Bytecode::LdTrue => Operation::LdTrue,
         Bytecode::LdFalse => Operation::LdFalse,
-        Bytecode::LdConst(idx) => Operation::LdConst { const_pool_index: idx.0 },
+        Bytecode::LdConst(idx) => Operation::LdConst {
+            const_pool_index: idx.0,
+        },
 
         Bytecode::CastU8 => {
             let val: IntegerValue = interp
@@ -246,7 +251,9 @@ pub(crate) fn footprinting(
             let local = locals.copy_loc(*idx as usize)?;
             Operation::CopyLoc {
                 local_index: *idx,
-                local: TracedValue::from(&local).items(),
+                local: TracedValueBuilder::new(&local)
+                    .build(&interp.footprints.state.reverse_local_value_addressings)
+                    .items,
             }
         },
         Bytecode::MoveLoc(idx) => {
@@ -257,24 +264,26 @@ pub(crate) fn footprinting(
             let local = locals.copy_loc(*idx as usize)?;
             Operation::MoveLoc {
                 local_index: *idx,
-                local: TracedValue::from(&local).items(),
+                local: TracedValueBuilder::new(&local)
+                    .build(&interp.footprints.state.reverse_local_value_addressings)
+                    .items,
             }
         },
         Bytecode::StLoc(idx) => {
+            let new_value = interp.operand_stack.last_n(1)?.last().unwrap();
+            let new_value = TracedValueBuilder::new(&new_value)
+                .build(&interp.footprints.state.reverse_local_value_addressings);
+
             interp
                 .footprints
                 .state
                 .remove_local(frame_index, *idx as usize);
-
-            let new_value = interp.operand_stack.last_n(1)?.last().unwrap();
-            let new_value: TracedValue = new_value.into();
-            let (new_value_indexes, new_value_items) = new_value.into_index_and_items();
             // value stored to loc only have 1 reference on it
             // so we can hook here to index every sub items by it rc-ptr.
             interp.footprints.state.add_local(
                 frame_index,
                 *idx as usize,
-                new_value_indexes,
+                new_value.container_sub_indexes,
             );
             let old_local = if locals.is_invalid(*idx as usize)? {
                 None
@@ -284,8 +293,12 @@ pub(crate) fn footprinting(
 
             Operation::StLoc {
                 local_index: *idx,
-                old_local: old_local.map(|v| TracedValue::from(&v).items()),
-                new_value: new_value_items,
+                old_local: old_local.map(|v| {
+                    TracedValueBuilder::new(&v)
+                        .build(&interp.footprints.state.reverse_local_value_addressings)
+                        .items
+                }),
+                new_value: new_value.items,
             }
         },
         Bytecode::Call(fh_idx) => {
@@ -295,7 +308,7 @@ pub(crate) fn footprinting(
                 args: interp
                     .operand_stack
                     .last_n(func.param_count())?
-                    .map(|t| TracedValue::from(t).items())
+                    .map(|t| TracedValueBuilder::new(t).build(&interp.footprints.state.reverse_local_value_addressings).items)
                     .collect::<Vec<_>>(),
             }
         },
@@ -307,7 +320,7 @@ pub(crate) fn footprinting(
                 args: interp
                     .operand_stack
                     .last_n(func.param_count())?
-                    .map(|t| TracedValue::from(t).items())
+                    .map(|t| TracedValueBuilder::new(t).build(&interp.footprints.state.reverse_local_value_addressings).items)
                     .collect::<Vec<_>>(),
             }
         },
@@ -320,7 +333,7 @@ pub(crate) fn footprinting(
                 args: interp
                     .operand_stack
                     .last_n(field_count as usize)?
-                    .map(|t| TracedValue::from(t).items())
+                    .map(|t| TracedValueBuilder::new(t).build(&interp.footprints.state.reverse_local_value_addressings).items)
                     .collect::<Vec<_>>(),
             }
         },
@@ -332,7 +345,7 @@ pub(crate) fn footprinting(
                 args: interp
                     .operand_stack
                     .last_n(field_count as usize)?
-                    .map(|t| TracedValue::from(t).items())
+                    .map(|t| TracedValueBuilder::new(t).build(&interp.footprints.state.reverse_local_value_addressings).items)
                     .collect::<Vec<_>>(),
             }
         },
@@ -345,7 +358,7 @@ pub(crate) fn footprinting(
                     .operand_stack
                     .last_n(1)?
                     .last()
-                    .map(|t| TracedValue::from(t).items())
+                    .map(|t| TracedValueBuilder::new(t).build(&interp.footprints.state.reverse_local_value_addressings).items)
                     .unwrap(),
             }
         },
@@ -358,52 +371,41 @@ pub(crate) fn footprinting(
                     .operand_stack
                     .last_n(1)?
                     .last()
-                    .map(|t| TracedValue::from(t).items())
+                    .map(|t| TracedValueBuilder::new(t).build(&interp.footprints.state.reverse_local_value_addressings).items)
                     .unwrap(),
             }
         },
         Bytecode::ReadRef => {
-            let reference = interp
+            let reference_value = interp
                 .operand_stack
                 .last_n(1)?
                 .last()
                 .unwrap()
                 .copy_value()?;
-            let mut visitor = ReferenceValueVisitor::default();
-            reference.visit(&mut visitor);
-            let (pointer, child_index) = visitor.into_ref_and_child();
-
-            let value = reference
+            let reference = TracedValueBuilder::new(&reference_value).build_as_reference(&interp.footprints.state.reverse_local_value_addressings).unwrap();
+            let value = reference_value
                 .value_as::<move_vm_types::values::Reference>()?
                 .read_ref()?;
+
             Operation::ReadRef {
-                reference: interp
-                    .footprints
-                    .state
-                    .reverse_local_value_addressings
-                    .get(&pointer)
-                    .cloned()
-                    .unwrap().ref_child(child_index.map(|i| i + 1).unwrap_or_default()),
-                value: TracedValue::from(&value).items(),
+                reference,
+                value: TracedValueBuilder::new(&value).build_as_plain_value().unwrap().items,
             }
         },
         Bytecode::WriteRef => {
-            let reference = interp
+            let reference_value = interp
                 .operand_stack
                 .last_n(1)?
                 .last()
                 .unwrap()
                 .copy_value()?;
 
-            let (pointer, child_index) = {
-                let mut visitor = ReferenceValueVisitor::default();
-                reference.visit(&mut visitor);
-                visitor.into_ref_and_child()
-            };
+            let reference = TracedValueBuilder::new(&reference_value).build_as_reference(&interp.footprints.state.reverse_local_value_addressings).unwrap();
 
-            let old_value = reference
+            let old_value = reference_value
                 .value_as::<move_vm_types::values::Reference>()?
                 .read_ref()?;
+
             let new_value = interp
                 .operand_stack
                 .last_n(2)?
@@ -411,15 +413,9 @@ pub(crate) fn footprinting(
                 .unwrap()
                 .copy_value()?;
             Operation::WriteRef {
-                reference: interp
-                    .footprints
-                    .state
-                    .reverse_local_value_addressings
-                    .get(&pointer)
-                    .cloned()
-                    .unwrap().ref_child(child_index.map(|i| i + 1).unwrap_or_default()),
-                old_value: TracedValue::from(&old_value).items(),
-                new_value: TracedValue::from(&new_value).items(),
+                reference,
+                old_value: TracedValueBuilder::new(&old_value).build_as_plain_value().unwrap().items,
+                new_value: TracedValueBuilder::new(&new_value).build_as_plain_value().unwrap().items,
             }
         },
         Bytecode::FreezeRef => Operation::FreezeRef,
@@ -593,8 +589,8 @@ pub(crate) fn footprinting(
                 .map(|v| v.copy_value())
                 .collect::<PartialVMResult<Vec<_>>>()?;
             Operation::Eq {
-                rhs: TracedValue::from(&operands.pop().unwrap()).items(),
-                lhs: TracedValue::from(&operands.pop().unwrap()).items(),
+                rhs: TracedValueBuilder::new(&operands.pop().unwrap()).build_as_plain_value().unwrap().items,
+                lhs: TracedValueBuilder::new(&operands.pop().unwrap()).build_as_plain_value().unwrap().items,
             }
         },
         Bytecode::Neq => {
@@ -604,8 +600,8 @@ pub(crate) fn footprinting(
                 .map(|v| v.copy_value())
                 .collect::<PartialVMResult<Vec<_>>>()?;
             Operation::Neq {
-                rhs: TracedValue::from(&operands.pop().unwrap()).items(),
-                lhs: TracedValue::from(&operands.pop().unwrap()).items(),
+                rhs: TracedValueBuilder::new(&operands.pop().unwrap()).build_as_plain_value().unwrap().items,
+                lhs: TracedValueBuilder::new(&operands.pop().unwrap()).build_as_plain_value().unwrap().items,
             }
         },
 
@@ -650,7 +646,7 @@ pub(crate) fn footprinting(
             args: interp
                 .operand_stack
                 .last_n(*num as usize)?
-                .map(|t| TracedValue::from(t).items())
+                .map(|t| TracedValueBuilder::new(t).build_as_plain_value().unwrap().items)
                 .collect::<Vec<_>>(),
         },
         Bytecode::VecUnpack(si, num) => Operation::VecUnpack {
@@ -660,7 +656,7 @@ pub(crate) fn footprinting(
                 .operand_stack
                 .last_n(1)?
                 .last()
-                .map(|t| TracedValue::from(t).items())
+                .map(|t| TracedValueBuilder::new(t).build_as_plain_value().unwrap().items)
                 .unwrap(),
         },
         Bytecode::VecLen(si) => {
@@ -671,12 +667,10 @@ pub(crate) fn footprinting(
                 .collect::<PartialVMResult<Vec<_>>>()?
                 .pop()
                 .unwrap();
-            let (reference_pointer, child_index) = {
-                let mut visitor = ReferenceValueVisitor::default();
-                vec_ref.visit(&mut visitor);
-                visitor.into_ref_and_child()
-            };
-            assert!(child_index.is_none());
+            let reference = TracedValueBuilder::new(&vec_ref).build_as_reference(&interp
+                .footprints
+                .state
+                .reverse_local_value_addressings).unwrap();
 
             let vec_ref = vec_ref.value_as::<VectorRef>()?;
 
@@ -690,13 +684,7 @@ pub(crate) fn footprinting(
             Operation::VecLen {
                 si: si.0,
 
-                vec_ref: interp
-                    .footprints
-                    .state
-                    .reverse_local_value_addressings
-                    .get(&reference_pointer)
-                    .cloned()
-                    .unwrap(),
+                vec_ref: reference,
                 len: len.value_as()?,
             }
         },
@@ -708,13 +696,10 @@ pub(crate) fn footprinting(
                 .collect::<PartialVMResult<Vec<_>>>()?;
             let idx: u64 = values.pop().unwrap().value_as()?;
             let vec_ref = values.pop().unwrap();
-            let (reference_pointer, child_index) = {
-                let mut visitor = ReferenceValueVisitor::default();
-                vec_ref.visit(&mut visitor);
-                visitor.into_ref_and_child()
-            };
-            assert!(child_index.is_none());
-
+            let reference = TracedValueBuilder::new(&vec_ref).build_as_reference(&interp
+                .footprints
+                .state
+                .reverse_local_value_addressings).unwrap();
             // let vec_ref = vec_ref.value_as::<VectorRef>()?;
             // let elem = {
             //     let (ty, _ty_count) =
@@ -728,13 +713,7 @@ pub(crate) fn footprinting(
 
                 imm: matches!(instr, Bytecode::VecImmBorrow(_)),
                 idx,
-                vec_ref: interp
-                    .footprints
-                    .state
-                    .reverse_local_value_addressings
-                    .get(&reference_pointer)
-                    .cloned()
-                    .unwrap(),
+                vec_ref: reference
             }
         },
         Bytecode::VecPushBack(si) => {
@@ -746,12 +725,10 @@ pub(crate) fn footprinting(
             let elem = values.pop().unwrap();
             let vec_ref = values.pop().unwrap();
 
-            let (reference_pointer, child_index) = {
-                let mut visitor = ReferenceValueVisitor::default();
-                vec_ref.visit(&mut visitor);
-                visitor.into_ref_and_child()
-            };
-            assert!(child_index.is_none());
+            let reference = TracedValueBuilder::new(&vec_ref).build_as_reference(&interp
+                .footprints
+                .state
+                .reverse_local_value_addressings).unwrap();
 
             let vec_ref = vec_ref.value_as::<VectorRef>()?;
             let (ty, _ty_count) =
@@ -764,15 +741,9 @@ pub(crate) fn footprinting(
             Operation::VecPushBack {
                 si: si.0,
 
-                vec_ref: interp
-                    .footprints
-                    .state
-                    .reverse_local_value_addressings
-                    .get(&reference_pointer)
-                    .cloned()
-                    .unwrap(),
+                vec_ref: reference,
 
-                elem: TracedValue::from(&elem).items(),
+                elem: TracedValueBuilder::new(&elem).build_as_plain_value().unwrap().items,
                 vec_len: vec_len.value_as()?,
             }
         },
@@ -783,13 +754,10 @@ pub(crate) fn footprinting(
                 .map(|v| v.copy_value())
                 .collect::<PartialVMResult<Vec<_>>>()?;
             let vec_ref = values.pop().unwrap();
-            let (reference_pointer, child_index) = {
-                let mut visitor = ReferenceValueVisitor::default();
-                vec_ref.visit(&mut visitor);
-                visitor.into_ref_and_child()
-            };
-            assert!(child_index.is_none());
-
+            let reference = TracedValueBuilder::new(&vec_ref).build_as_reference(&interp
+                .footprints
+                .state
+                .reverse_local_value_addressings).unwrap();
 
             let vec_ref = vec_ref.value_as::<VectorRef>()?;
             let (ty, _ty_count) =
@@ -799,21 +767,18 @@ pub(crate) fn footprinting(
 
             let vec_len: u64 = vec_ref.len(ty)?.value_as()?;
 
-            let elem = vec_ref.borrow_elem((vec_len - 1) as usize, ty)?.value_as::<move_vm_types::values::Reference>()?.read_ref()?;
+            let elem = vec_ref
+                .borrow_elem((vec_len - 1) as usize, ty)?
+                .value_as::<move_vm_types::values::Reference>()?
+                .read_ref()?;
 
             Operation::VecPopBack {
                 si: si.0,
 
                 vec_len,
-                vec_ref: interp
-                    .footprints
-                    .state
-                    .reverse_local_value_addressings
-                    .get(&reference_pointer)
-                    .cloned()
-                    .unwrap(),
+                vec_ref: reference,
 
-                elem: TracedValue::from(&elem).items(),
+                elem: TracedValueBuilder::new(&elem).build_as_plain_value().unwrap().items
             }
         },
 
@@ -826,37 +791,34 @@ pub(crate) fn footprinting(
             let idx2: u64 = values.pop().unwrap().value_as()?;
             let idx1: u64 = values.pop().unwrap().value_as()?;
             let vec_ref = values.pop().unwrap();
-            let (reference_pointer, child_index) = {
-                let mut visitor = ReferenceValueVisitor::default();
-                vec_ref.visit(&mut visitor);
-                visitor.into_ref_and_child()
-            };
-            assert!(child_index.is_none());
-
+            let reference = TracedValueBuilder::new(&vec_ref).build_as_reference(&interp
+                .footprints
+                .state
+                .reverse_local_value_addressings).unwrap();
             let vec_ref = vec_ref.value_as::<VectorRef>()?;
             let (ty, _ty_count) =
                 frame
                     .ty_cache
                     .get_signature_index_type(*si, resolver, &frame.ty_args)?;
             let vec_len: u64 = vec_ref.len(ty)?.value_as()?;
-            let idx2_elem = vec_ref.borrow_elem(idx2 as usize, ty)?.value_as::<move_vm_types::values::Reference>()?.read_ref()?;
-            let idx1_elem = vec_ref.borrow_elem(idx1 as usize, ty)?.value_as::<move_vm_types::values::Reference>()?.read_ref()?;
+            let idx2_elem = vec_ref
+                .borrow_elem(idx2 as usize, ty)?
+                .value_as::<move_vm_types::values::Reference>()?
+                .read_ref()?;
+            let idx1_elem = vec_ref
+                .borrow_elem(idx1 as usize, ty)?
+                .value_as::<move_vm_types::values::Reference>()?
+                .read_ref()?;
 
             Operation::VecSwap {
                 si: si.0,
 
                 vec_len,
-                vec_ref: interp
-                    .footprints
-                    .state
-                    .reverse_local_value_addressings
-                    .get(&reference_pointer)
-                    .cloned()
-                    .unwrap(),
+                vec_ref: reference,
                 idx2,
                 idx1,
-                idx2_elem: TracedValue::from(&idx2_elem).items(),
-                idx1_elem: TracedValue::from(&idx1_elem).items(),
+                idx2_elem: TracedValueBuilder::new(&idx2_elem).build_as_plain_value().unwrap().items,
+                idx1_elem: TracedValueBuilder::new(&idx1_elem).build_as_plain_value().unwrap().items
             }
         },
         Bytecode::MutBorrowGlobal(_)
@@ -911,33 +873,75 @@ fn serialize_instruction(opcode: &Bytecode) -> Instruction {
         Bytecode::FreezeRef => Instruction::new(Opcodes::FREEZE_REF, None, None),
         Bytecode::Pop => Instruction::new(Opcodes::POP, None, None),
         Bytecode::Ret => Instruction::new(Opcodes::RET, None, None),
-        Bytecode::BrTrue(code_offset) => Instruction::new(Opcodes::BR_TRUE, Some(*code_offset as u128), None),
-        Bytecode::BrFalse(code_offset) => Instruction::new(Opcodes::BR_FALSE, Some(*code_offset as u128), None),
-        Bytecode::Branch(code_offset) => Instruction::new(Opcodes::BRANCH, Some(*code_offset as u128), None),
+        Bytecode::BrTrue(code_offset) => {
+            Instruction::new(Opcodes::BR_TRUE, Some(*code_offset as u128), None)
+        },
+        Bytecode::BrFalse(code_offset) => {
+            Instruction::new(Opcodes::BR_FALSE, Some(*code_offset as u128), None)
+        },
+        Bytecode::Branch(code_offset) => {
+            Instruction::new(Opcodes::BRANCH, Some(*code_offset as u128), None)
+        },
         Bytecode::LdU8(value) => Instruction::new(Opcodes::LD_U8, Some(*value as u128), None),
         Bytecode::LdU64(value) => Instruction::new(Opcodes::LD_U64, Some(*value as u128), None),
         Bytecode::LdU128(value) => Instruction::new(Opcodes::LD_U128, Some(*value), None),
         Bytecode::CastU8 => Instruction::new(Opcodes::CAST_U8, None, None),
         Bytecode::CastU64 => Instruction::new(Opcodes::CAST_U64, None, None),
         Bytecode::CastU128 => Instruction::new(Opcodes::CAST_U128, None, None),
-        Bytecode::LdConst(const_idx) => Instruction::new(Opcodes::LD_CONST, Some(const_idx.0 as u128), None),
+        Bytecode::LdConst(const_idx) => {
+            Instruction::new(Opcodes::LD_CONST, Some(const_idx.0 as u128), None)
+        },
         Bytecode::LdTrue => Instruction::new(Opcodes::LD_TRUE, None, None),
         Bytecode::LdFalse => Instruction::new(Opcodes::LD_FALSE, None, None),
-        Bytecode::CopyLoc(local_idx) => Instruction::new(Opcodes::COPY_LOC, Some(*local_idx as u128), None),
-        Bytecode::MoveLoc(local_idx) => Instruction::new(Opcodes::MOVE_LOC, Some(*local_idx as u128), None),
-        Bytecode::StLoc(local_idx) => Instruction::new(Opcodes::ST_LOC, Some(*local_idx as u128), None),
-        Bytecode::MutBorrowLoc(local_idx) => Instruction::new(Opcodes::MUT_BORROW_LOC, Some(*local_idx as u128), None),
-        Bytecode::ImmBorrowLoc(local_idx) => Instruction::new(Opcodes::IMM_BORROW_LOC, Some(*local_idx as u128), None),
-        Bytecode::MutBorrowField(field_idx) => Instruction::new(Opcodes::MUT_BORROW_FIELD, Some(field_idx.0 as u128), None),
-        Bytecode::MutBorrowFieldGeneric(field_idx) => Instruction::new(Opcodes::MUT_BORROW_FIELD_GENERIC, Some(field_idx.0 as u128), None),
-        Bytecode::ImmBorrowField(field_idx) => Instruction::new(Opcodes::IMM_BORROW_FIELD, Some(field_idx.0 as u128), None),
-        Bytecode::ImmBorrowFieldGeneric(field_idx) => Instruction::new(Opcodes::IMM_BORROW_FIELD_GENERIC, Some(field_idx.0 as u128), None),
-        Bytecode::Call(method_idx) => Instruction::new(Opcodes::CALL, Some(method_idx.0 as u128), None),
-        Bytecode::Pack(class_idx) => Instruction::new(Opcodes::PACK, Some(class_idx.0 as u128), None),
-        Bytecode::Unpack(class_idx) => Instruction::new(Opcodes::UNPACK, Some(class_idx.0 as u128), None),
-        Bytecode::CallGeneric(method_idx) => Instruction::new(Opcodes::CALL_GENERIC, Some(method_idx.0 as u128), None),
-        Bytecode::PackGeneric(class_idx) => Instruction::new(Opcodes::PACK_GENERIC, Some(class_idx.0 as u128), None),
-        Bytecode::UnpackGeneric(class_idx) => Instruction::new(Opcodes::UNPACK_GENERIC, Some(class_idx.0 as u128), None),
+        Bytecode::CopyLoc(local_idx) => {
+            Instruction::new(Opcodes::COPY_LOC, Some(*local_idx as u128), None)
+        },
+        Bytecode::MoveLoc(local_idx) => {
+            Instruction::new(Opcodes::MOVE_LOC, Some(*local_idx as u128), None)
+        },
+        Bytecode::StLoc(local_idx) => {
+            Instruction::new(Opcodes::ST_LOC, Some(*local_idx as u128), None)
+        },
+        Bytecode::MutBorrowLoc(local_idx) => {
+            Instruction::new(Opcodes::MUT_BORROW_LOC, Some(*local_idx as u128), None)
+        },
+        Bytecode::ImmBorrowLoc(local_idx) => {
+            Instruction::new(Opcodes::IMM_BORROW_LOC, Some(*local_idx as u128), None)
+        },
+        Bytecode::MutBorrowField(field_idx) => {
+            Instruction::new(Opcodes::MUT_BORROW_FIELD, Some(field_idx.0 as u128), None)
+        },
+        Bytecode::MutBorrowFieldGeneric(field_idx) => Instruction::new(
+            Opcodes::MUT_BORROW_FIELD_GENERIC,
+            Some(field_idx.0 as u128),
+            None,
+        ),
+        Bytecode::ImmBorrowField(field_idx) => {
+            Instruction::new(Opcodes::IMM_BORROW_FIELD, Some(field_idx.0 as u128), None)
+        },
+        Bytecode::ImmBorrowFieldGeneric(field_idx) => Instruction::new(
+            Opcodes::IMM_BORROW_FIELD_GENERIC,
+            Some(field_idx.0 as u128),
+            None,
+        ),
+        Bytecode::Call(method_idx) => {
+            Instruction::new(Opcodes::CALL, Some(method_idx.0 as u128), None)
+        },
+        Bytecode::Pack(class_idx) => {
+            Instruction::new(Opcodes::PACK, Some(class_idx.0 as u128), None)
+        },
+        Bytecode::Unpack(class_idx) => {
+            Instruction::new(Opcodes::UNPACK, Some(class_idx.0 as u128), None)
+        },
+        Bytecode::CallGeneric(method_idx) => {
+            Instruction::new(Opcodes::CALL_GENERIC, Some(method_idx.0 as u128), None)
+        },
+        Bytecode::PackGeneric(class_idx) => {
+            Instruction::new(Opcodes::PACK_GENERIC, Some(class_idx.0 as u128), None)
+        },
+        Bytecode::UnpackGeneric(class_idx) => {
+            Instruction::new(Opcodes::UNPACK_GENERIC, Some(class_idx.0 as u128), None)
+        },
         Bytecode::ReadRef => Instruction::new(Opcodes::READ_REF, None, None),
         Bytecode::WriteRef => Instruction::new(Opcodes::WRITE_REF, None, None),
         Bytecode::Add => Instruction::new(Opcodes::ADD, None, None),
@@ -961,24 +965,68 @@ fn serialize_instruction(opcode: &Bytecode) -> Instruction {
         Bytecode::Ge => Instruction::new(Opcodes::GE, None, None),
         Bytecode::Abort => Instruction::new(Opcodes::ABORT, None, None),
         Bytecode::Nop => Instruction::new(Opcodes::NOP, None, None),
-        Bytecode::Exists(class_idx) => Instruction::new(Opcodes::EXISTS, Some(class_idx.0 as u128), None),
-        Bytecode::MutBorrowGlobal(class_idx) => Instruction::new(Opcodes::MUT_BORROW_GLOBAL, Some(class_idx.0 as u128), None),
-        Bytecode::ImmBorrowGlobal(class_idx) => Instruction::new(Opcodes::IMM_BORROW_GLOBAL, Some(class_idx.0 as u128), None),
-        Bytecode::MoveFrom(class_idx) => Instruction::new(Opcodes::MOVE_FROM, Some(class_idx.0 as u128), None),
-        Bytecode::MoveTo(class_idx) => Instruction::new(Opcodes::MOVE_TO, Some(class_idx.0 as u128), None),
-        Bytecode::ExistsGeneric(class_idx) => Instruction::new(Opcodes::EXISTS_GENERIC, Some(class_idx.0 as u128), None),
-        Bytecode::MutBorrowGlobalGeneric(class_idx) => Instruction::new(Opcodes::MUT_BORROW_GLOBAL_GENERIC, Some(class_idx.0 as u128), None),
-        Bytecode::ImmBorrowGlobalGeneric(class_idx) => Instruction::new(Opcodes::IMM_BORROW_GLOBAL_GENERIC, Some(class_idx.0 as u128), None),
-        Bytecode::MoveFromGeneric(class_idx) => Instruction::new(Opcodes::MOVE_FROM_GENERIC, Some(class_idx.0 as u128), None),
-        Bytecode::MoveToGeneric(class_idx) => Instruction::new(Opcodes::MOVE_TO_GENERIC, Some(class_idx.0 as u128), None),
-        Bytecode::VecPack(sig_idx, num) => Instruction::new(Opcodes::VEC_PACK, Some(sig_idx.0 as u128), Some(*num as u128)),
-        Bytecode::VecLen(sig_idx) => Instruction::new(Opcodes::VEC_LEN, Some(sig_idx.0 as u128), None),
-        Bytecode::VecImmBorrow(sig_idx) => Instruction::new(Opcodes::VEC_IMM_BORROW, Some(sig_idx.0 as u128), None),
-        Bytecode::VecMutBorrow(sig_idx) => Instruction::new(Opcodes::VEC_MUT_BORROW, Some(sig_idx.0 as u128), None),
-        Bytecode::VecPushBack(sig_idx) => Instruction::new(Opcodes::VEC_PUSH_BACK, Some(sig_idx.0 as u128), None),
-        Bytecode::VecPopBack(sig_idx) => Instruction::new(Opcodes::VEC_POP_BACK, Some(sig_idx.0 as u128), None),
-        Bytecode::VecUnpack(sig_idx, num) => Instruction::new(Opcodes::VEC_UNPACK, Some(sig_idx.0 as u128), Some(*num as u128)),
-        Bytecode::VecSwap(sig_idx) => Instruction::new(Opcodes::VEC_SWAP, Some(sig_idx.0 as u128), None),
+        Bytecode::Exists(class_idx) => {
+            Instruction::new(Opcodes::EXISTS, Some(class_idx.0 as u128), None)
+        },
+        Bytecode::MutBorrowGlobal(class_idx) => {
+            Instruction::new(Opcodes::MUT_BORROW_GLOBAL, Some(class_idx.0 as u128), None)
+        },
+        Bytecode::ImmBorrowGlobal(class_idx) => {
+            Instruction::new(Opcodes::IMM_BORROW_GLOBAL, Some(class_idx.0 as u128), None)
+        },
+        Bytecode::MoveFrom(class_idx) => {
+            Instruction::new(Opcodes::MOVE_FROM, Some(class_idx.0 as u128), None)
+        },
+        Bytecode::MoveTo(class_idx) => {
+            Instruction::new(Opcodes::MOVE_TO, Some(class_idx.0 as u128), None)
+        },
+        Bytecode::ExistsGeneric(class_idx) => {
+            Instruction::new(Opcodes::EXISTS_GENERIC, Some(class_idx.0 as u128), None)
+        },
+        Bytecode::MutBorrowGlobalGeneric(class_idx) => Instruction::new(
+            Opcodes::MUT_BORROW_GLOBAL_GENERIC,
+            Some(class_idx.0 as u128),
+            None,
+        ),
+        Bytecode::ImmBorrowGlobalGeneric(class_idx) => Instruction::new(
+            Opcodes::IMM_BORROW_GLOBAL_GENERIC,
+            Some(class_idx.0 as u128),
+            None,
+        ),
+        Bytecode::MoveFromGeneric(class_idx) => {
+            Instruction::new(Opcodes::MOVE_FROM_GENERIC, Some(class_idx.0 as u128), None)
+        },
+        Bytecode::MoveToGeneric(class_idx) => {
+            Instruction::new(Opcodes::MOVE_TO_GENERIC, Some(class_idx.0 as u128), None)
+        },
+        Bytecode::VecPack(sig_idx, num) => Instruction::new(
+            Opcodes::VEC_PACK,
+            Some(sig_idx.0 as u128),
+            Some(*num as u128),
+        ),
+        Bytecode::VecLen(sig_idx) => {
+            Instruction::new(Opcodes::VEC_LEN, Some(sig_idx.0 as u128), None)
+        },
+        Bytecode::VecImmBorrow(sig_idx) => {
+            Instruction::new(Opcodes::VEC_IMM_BORROW, Some(sig_idx.0 as u128), None)
+        },
+        Bytecode::VecMutBorrow(sig_idx) => {
+            Instruction::new(Opcodes::VEC_MUT_BORROW, Some(sig_idx.0 as u128), None)
+        },
+        Bytecode::VecPushBack(sig_idx) => {
+            Instruction::new(Opcodes::VEC_PUSH_BACK, Some(sig_idx.0 as u128), None)
+        },
+        Bytecode::VecPopBack(sig_idx) => {
+            Instruction::new(Opcodes::VEC_POP_BACK, Some(sig_idx.0 as u128), None)
+        },
+        Bytecode::VecUnpack(sig_idx, num) => Instruction::new(
+            Opcodes::VEC_UNPACK,
+            Some(sig_idx.0 as u128),
+            Some(*num as u128),
+        ),
+        Bytecode::VecSwap(sig_idx) => {
+            Instruction::new(Opcodes::VEC_SWAP, Some(sig_idx.0 as u128), None)
+        },
         Bytecode::LdU16(value) => Instruction::new(Opcodes::LD_U16, Some(*value as u128), None),
         Bytecode::LdU32(value) => Instruction::new(Opcodes::LD_U32, Some(*value as u128), None),
         Bytecode::LdU256(value) => {
