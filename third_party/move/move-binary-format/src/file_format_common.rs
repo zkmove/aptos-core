@@ -17,6 +17,8 @@ use std::{
     io::{Cursor, Read},
     mem::size_of,
 };
+use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
 
 /// Constant values for the binary format header.
 ///
@@ -195,7 +197,7 @@ pub enum SerializedNativeStructFlag {
 #[rustfmt::skip]
 #[allow(non_camel_case_types)]
 #[repr(u8)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug, Copy, Eq, PartialEq, FromPrimitive)]
 pub enum Opcodes {
     POP                         = 0x01,
     RET                         = 0x02,

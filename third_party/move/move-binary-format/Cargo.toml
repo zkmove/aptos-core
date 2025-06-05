@@ -20,6 +20,8 @@ proptest-derive = { workspace = true, optional = true }
 ref-cast = { workspace = true }
 serde = { workspace = true }
 variant_count = { workspace = true }
+num-derive = "0.3"
+num-traits = "0.2"
 
 [dev-dependencies]
 move-core-types = { path = "../move-core/types", features = ["fuzzing"] }
