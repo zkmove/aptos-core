@@ -13,12 +13,11 @@
 //! It's used to compress mostly indexes into the main binary tables.
 use crate::file_format::Bytecode;
 use anyhow::{bail, Result};
+use num_derive::FromPrimitive;
 use std::{
     io::{Cursor, Read},
     mem::size_of,
 };
-use num_derive::FromPrimitive;
-use num_traits::FromPrimitive;
 
 /// Constant values for the binary format header.
 ///

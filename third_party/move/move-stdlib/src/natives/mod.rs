@@ -12,6 +12,7 @@ pub mod string;
 pub mod type_name;
 #[cfg(feature = "testing")]
 pub mod unit_test;
+pub mod zkhash;
 
 use move_core_types::account_address::AccountAddress;
 use move_vm_runtime::native_functions::{make_table_from_iter, NativeFunctionTable};
@@ -23,6 +24,7 @@ pub struct GasParameters {
     pub signer: signer::GasParameters,
     pub string: string::GasParameters,
     pub type_name: type_name::GasParameters,
+    pub zkhash: zkhash::GasParameters,
 
     #[cfg(feature = "testing")]
     pub unit_test: unit_test::GasParameters,
@@ -59,6 +61,9 @@ impl GasParameters {
             },
             signer: signer::GasParameters {
                 borrow_address: signer::BorrowAddressGasParameters { base: 0.into() },
+            },
+            zkhash: zkhash::GasParameters {
+                fake_hash: zkhash::FakeHashGasParameters { base: 0.into() },
             },
             string: string::GasParameters {
                 check_utf8: string::CheckUtf8GasParameters {
@@ -106,10 +111,10 @@ pub fn all_natives(
     add_natives!("signer", signer::make_all(gas_params.signer));
     add_natives!("string", string::make_all(gas_params.string));
     add_natives!("type_name", type_name::make_all(gas_params.type_name));
+    add_natives!("zkhash", zkhash::make_all(gas_params.zkhash));
+
     #[cfg(feature = "testing")]
-    {
-        add_natives!("unit_test", unit_test::make_all(gas_params.unit_test));
-    }
+    add_natives!("unit_test", unit_test::make_all(gas_params.unit_test));
 
     make_table_from_iter(move_std_addr, natives)
 }

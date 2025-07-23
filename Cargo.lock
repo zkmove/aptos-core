@@ -10247,6 +10247,8 @@ dependencies = [
  "backtrace",
  "indexmap 1.9.3",
  "move-core-types",
+ "num-derive",
+ "num-traits",
  "proptest",
  "proptest-derive",
  "ref-cast",

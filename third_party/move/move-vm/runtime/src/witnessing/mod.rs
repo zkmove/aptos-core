@@ -59,7 +59,15 @@ pub enum Operation {
         old_local: Option<ValueItems>,
         new_value: ValueItems,
     },
+    NativeCall {
+        fh_idx: u16,
+        args: Vec<ValueItems>,
+    },
     Call {
+        fh_idx: u16,
+        args: Vec<ValueItems>,
+    },
+    NativeCallGeneric {
         fh_idx: u16,
         args: Vec<ValueItems>,
     },

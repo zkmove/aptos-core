@@ -24,11 +24,11 @@ use move_vm_runtime::{
 use move_vm_test_utils::gas_schedule::CostTable;
 
 use crate::{
-    NativeFunctionRecord,
     sandbox::utils::{
         contains_module, explain_execution_effects, explain_execution_error, get_gas_status,
         is_bytecode_file, maybe_commit_effects, on_disk_state_view::OnDiskStateView,
     },
+    NativeFunctionRecord,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -126,6 +126,7 @@ move run` must be applied to a module inside `storage/`",
 
     if gen_witness {
         let fp = session.footprints();
+        // let fp: Vec<Footprint> = vec![];
         let file_path = state.build_dir().parent().unwrap().join("witnesses");
         fs::create_dir_all(file_path.as_path())?;
         let script_name = match script_name_opt {
