@@ -19,15 +19,15 @@ use smallvec::smallvec;
 use std::collections::VecDeque;
 use std::sync::Arc;
 /***************************************************************************************************
- * native fake_hash
+ * native poseidon_hash
  **************************************************************************************************/
 #[derive(Debug, Clone)]
-pub struct FakeHashGasParameters {
+pub struct PoseidonHashGasParameters {
     pub base: InternalGas,
 }
 const DOMAIN_SPEC: u64 = 1; // Domain spec for Poseidon hash
-fn native_fake_hash(
-    gas_params: &FakeHashGasParameters,
+fn native_poseidon_hash(
+    gas_params: &PoseidonHashGasParameters,
     _context: &mut NativeContext,
     _ty_args: Vec<Type>,
     mut args: VecDeque<Value>,
@@ -46,10 +46,10 @@ fn native_fake_hash(
     Ok(NativeResult::ok(cost, smallvec![Value::u256(hash_val)]))
 }
 
-pub fn make_native_fake_hash(gas_params: FakeHashGasParameters) -> NativeFunction {
+pub fn make_native_poseidon_hash(gas_params: PoseidonHashGasParameters) -> NativeFunction {
     Arc::new(
         move |context, ty_args, args| -> PartialVMResult<NativeResult> {
-            native_fake_hash(&gas_params, context, ty_args, args)
+            native_poseidon_hash(&gas_params, context, ty_args, args)
         },
     )
 }
@@ -59,12 +59,12 @@ pub fn make_native_fake_hash(gas_params: FakeHashGasParameters) -> NativeFunctio
  **************************************************************************************************/
 #[derive(Debug, Clone)]
 pub struct GasParameters {
-    pub fake_hash: FakeHashGasParameters,
+    pub poseidon_hash: PoseidonHashGasParameters,
 }
 
 pub fn make_all(gas_params: GasParameters) -> impl Iterator<Item=(String, NativeFunction)> {
     let natives = [
-        ("fake_hash", make_native_fake_hash(gas_params.fake_hash)),
+        ("poseidon_hash", make_native_poseidon_hash(gas_params.poseidon_hash)),
     ];
 
     make_module_natives(natives)

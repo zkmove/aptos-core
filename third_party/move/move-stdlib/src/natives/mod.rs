@@ -63,7 +63,7 @@ impl GasParameters {
                 borrow_address: signer::BorrowAddressGasParameters { base: 0.into() },
             },
             zkhash: zkhash::GasParameters {
-                fake_hash: zkhash::FakeHashGasParameters { base: 0.into() },
+                poseidon_hash: zkhash::PoseidonHashGasParameters { base: 0.into() },
             },
             string: string::GasParameters {
                 check_utf8: string::CheckUtf8GasParameters {
