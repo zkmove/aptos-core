@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::natives::helpers::make_module_natives;
+use halo2curves::bn256::Fr;
+use halo2curves::ff::PrimeField;
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::gas_algebra::InternalGas;
 use move_core_types::u256::U256;
@@ -23,7 +25,7 @@ use std::sync::Arc;
 pub struct FakeHashGasParameters {
     pub base: InternalGas,
 }
-
+const DOMAIN_SPEC: u64 = 1; // Domain spec for Poseidon hash
 fn native_fake_hash(
     gas_params: &FakeHashGasParameters,
     _context: &mut NativeContext,
@@ -38,10 +40,9 @@ fn native_fake_hash(
     let arg2 = pop_arg!(args, u128);
     let arg1 = pop_arg!(args, u128);
 
-    let mut hash_vec = [0u8; 32];
-    hash_vec[0..16].copy_from_slice(&arg1.to_le_bytes());
-    hash_vec[16..32].copy_from_slice(&arg2.to_le_bytes());
-    let hash_val = U256::from_le_bytes(&hash_vec);
+    let hash_result = poseidon_base::Hashable::hash_with_domain([Fr::from_u128(arg1), Fr::from_u128(arg2)], Fr::from(DOMAIN_SPEC));
+    let hash_val = U256::from_le_bytes(&hash_result.to_repr());
+
     Ok(NativeResult::ok(cost, smallvec![Value::u256(hash_val)]))
 }
 

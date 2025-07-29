@@ -8498,6 +8498,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "halo2curves"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db81d01d0bbfec9f624d7590fc6929ee2537a64ec1e080d8f8c9e2d2da291405"
+dependencies = [
+ "blake2b_simd",
+ "ff",
+ "group",
+ "hex",
+ "lazy_static",
+ "num-bigint 0.4.4",
+ "num-traits",
+ "pairing",
+ "pasta_curves",
+ "paste",
+ "rand 0.8.5",
+ "rand_core 0.6.4",
+ "rayon",
+ "serde",
+ "serde_arrays",
+ "static_assertions",
+ "subtle",
+]
+
+[[package]]
 name = "handlebars"
 version = "4.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10851,6 +10876,7 @@ dependencies = [
  "anyhow",
  "dir-diff",
  "file_diff",
+ "halo2curves",
  "hex",
  "log",
  "move-binary-format",
@@ -10865,6 +10891,7 @@ dependencies = [
  "move-unit-test",
  "move-vm-runtime",
  "move-vm-types",
+ "poseidon-base",
  "sha2 0.9.9",
  "sha3 0.9.1",
  "smallvec",
@@ -12422,6 +12449,17 @@ dependencies = [
  "ark-bn254",
  "ark-ff",
  "ark-std",
+]
+
+[[package]]
+name = "poseidon-base"
+version = "0.1.0"
+source = "git+https://github.com/zkmove/poseidon-circuit.git?branch=main#3dbdba61216fe818e052a0bea99c26d74f3172de"
+dependencies = [
+ "bitvec 1.0.1",
+ "halo2curves",
+ "lazy_static",
+ "once_cell",
 ]
 
 [[package]]
@@ -14129,6 +14167,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f3a1a3341211875ef120e117ea7fd5228530ae7e7036a779fdc9117be6b3282c"
 dependencies = [
  "ordered-float 2.10.1",
+ "serde",
+]
+
+[[package]]
+name = "serde_arrays"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38636132857f68ec3d5f3eb121166d2af33cb55174c4d5ff645db6165cbef0fd"
+dependencies = [
  "serde",
 ]
 

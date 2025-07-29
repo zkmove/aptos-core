@@ -28,6 +28,9 @@ sha3 = { workspace = true }
 smallvec = { workspace = true }
 walkdir = { workspace = true }
 
+# used for native poseidon hash
+poseidon-base = { workspace = true }
+halo2curves = { workspace = true }
 [dev-dependencies]
 dir-diff = { workspace = true }
 file_diff = { workspace = true }
