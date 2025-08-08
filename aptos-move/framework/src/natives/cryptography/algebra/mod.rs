@@ -6,7 +6,7 @@ use crate::natives::cryptography::algebra::rand::rand_insecure_internal;
 use crate::natives::cryptography::algebra::{
     arithmetics::{
         add::add_internal, double::double_internal, mul::mul_internal, neg::neg_internal,
-        sqr::sqr_internal, sub::sub_internal,
+        sqr::sqr_internal, sub::sub_internal, pow::pow_internal,
     },
     casting::{downcast_internal, upcast_internal},
     constants::{one_internal, order_internal, zero_internal},
@@ -350,6 +350,7 @@ pub fn make_all(
         ("neg_internal", neg_internal),
         ("one_internal", one_internal),
         ("sqr_internal", sqr_internal),
+        ("pow_internal", pow_internal),
         ("sub_internal", sub_internal),
         ("zero_internal", zero_internal),
         ("from_u64_internal", from_u64_internal),

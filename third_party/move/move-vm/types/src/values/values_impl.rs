@@ -21,6 +21,7 @@ use move_core_types::value::{MoveStruct, MoveValue};
 use move_core_types::{
     account_address::AccountAddress,
     effects::Op,
+    gas_algebra::AbstractMemorySize,
     int256,
     value::{
         self, MoveStructLayout, MoveTypeLayout, MASTER_ADDRESS_FIELD_OFFSET, MASTER_SIGNER_VARIANT,
@@ -3624,6 +3625,14 @@ impl VectorRef {
         match c {
             Container::VecU8(r) => r.borrow(),
             _ => panic!("can only be called on vector<u8>"),
+        }
+    }
+
+    pub fn as_vec_u64_ref(&self) -> std::cell::Ref<'_, Vec<u64>> {
+        let c = self.0.container();
+        match c {
+            Container::VecU64(r) => r.borrow(),
+            _ => panic!("can only be called on vector<u64>"),
         }
     }
 
