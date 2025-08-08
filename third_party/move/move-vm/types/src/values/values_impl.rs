@@ -2796,6 +2796,14 @@ impl VectorRef {
         }
     }
 
+    pub fn as_vec_u64_ref(&self) -> std::cell::Ref<'_, Vec<u64>> {
+        let c = self.0.container();
+        match c {
+            Container::VecU64(r) => r.borrow(),
+            _ => panic!("can only be called on vector<u64>"),
+        }
+    }
+
     pub fn pop(&self, type_param: &Type) -> PartialVMResult<Value> {
         let c = self.0.container();
         check_elem_layout(type_param, c)?;

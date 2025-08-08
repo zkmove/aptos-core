@@ -10,6 +10,7 @@ pub mod neg;
 pub mod scalar_mul;
 pub mod sqr;
 pub mod sub;
+pub mod pow;
 
 #[macro_export]
 macro_rules! ark_binary_op_internal {
