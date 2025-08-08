@@ -135,6 +135,14 @@ module aptos_std::crypto_algebra {
         }
     }
 
+    /// Compute `x^exp` for an element `x` of a structure `S` and a vector of u64 representing the exponent.
+    public fun pow<S>(x: &Element<S>, exp: &vector<u64>): Element<S> {
+        abort_unless_cryptography_algebra_natives_enabled();
+        Element<S> {
+            handle: pow_internal<S>(x.handle, exp)
+        }
+    }
+
     /// Try computing `x^(-1)` for an element `x` of a structure `S`.
     /// Return none if `x` does not have a multiplicative inverse in the structure `S`
     /// (e.g., when `S` is a field, and `x` is zero).
@@ -329,6 +337,7 @@ module aptos_std::crypto_algebra {
     native fun scalar_mul_internal<G, S>(element_handle: u64, scalar_handle: u64): u64;
     native fun serialize_internal<S, F>(handle: u64): vector<u8>;
     native fun sqr_internal<G>(handle: u64): u64;
+    native fun pow_internal<F>(handle: u64, exp: &vector<u64>): u64;
     native fun sub_internal<G>(handle_1: u64, handle_2: u64): u64;
     native fun upcast_internal<S,L>(handle: u64): u64;
     native fun zero_internal<S>(): u64;
