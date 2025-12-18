@@ -719,7 +719,7 @@ poem-openapi = { version = "5.1.2", features = ["swagger-ui", "url"] }
 poem-openapi-derive = "5.1.1"
 poseidon-ark = { git = "https://github.com/arnaucube/poseidon-ark.git", rev = "6d2487aa1308d9d3860a2b724c485d73095c1c68" }
 poseidon-base = { git = "https://github.com/zkmove/poseidon-circuit.git", branch = "main" }
-halo2curves = { version = "0.6" }
+halo2curves = { version = "0.7.0" }
 pprof = { version = "0.11", features = ["flamegraph", "protobuf-codec"] }
 pretty = "0.10.0"
 pretty_assertions = "1.2.1"
