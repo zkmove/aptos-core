@@ -14,6 +14,7 @@ pub mod string;
 #[cfg(feature = "testing")]
 pub mod unit_test;
 pub mod vector;
+pub mod zkhash;
 
 use aptos_native_interface::SafeNativeBuilder;
 use move_core_types::account_address::AccountAddress;
@@ -41,6 +42,7 @@ pub fn all_natives(
         add_natives!("signer", signer::make_all(builder));
         add_natives!("string", string::make_all(builder));
         add_natives!("vector", vector::make_all(builder));
+        add_natives!("zkhash", zkhash::make_all(builder));
         #[cfg(feature = "testing")]
         {
             add_natives!("unit_test", unit_test::make_all(builder));

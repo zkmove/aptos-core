@@ -23,7 +23,6 @@ This is the root document for the Move stdlib module documentation. The Move std
 -  [`0x1::string`](string.md#0x1_string)
 -  [`0x1::type_name`](type_name.md#0x1_type_name)
 -  [`0x1::vector`](vector.md#0x1_vector)
--  [`0x1::zkhash`](zkhash.md#0x1_zkhash)
 
 
 [//]: # ("File containing references which can be used from documentation")

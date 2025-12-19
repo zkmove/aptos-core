@@ -26,6 +26,7 @@ For on overview of the Move language, see the [Move Book][move-book].
 -  [`0x1::signer`](signer.md#0x1_signer)
 -  [`0x1::string`](string.md#0x1_string)
 -  [`0x1::vector`](vector.md#0x1_vector)
+-  [`0x1::zkhash`](zkhash.md#0x1_zkhash)
 
 
 [move-book]: https://aptos.dev/move/book/SUMMARY

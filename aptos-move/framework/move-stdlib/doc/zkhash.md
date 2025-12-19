@@ -62,4 +62,4 @@ Performs a Poseidon hash on two u128 values and returns a u256 hash.
 </details>
 
 
-[//]: # ("File containing references which can be used from documentation")
+[move-book]: https://aptos.dev/move/book/SUMMARY

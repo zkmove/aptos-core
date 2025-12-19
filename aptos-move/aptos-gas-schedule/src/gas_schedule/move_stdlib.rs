@@ -52,5 +52,7 @@ crate::gas_schedule::macros::define_gas_parameters!(
         [vector_move_range_per_index_moved: InternalGasPerArg, { RELEASE_V1_24.. => "vector.move_range.per_index_moved" }, 10],
 
         [mem_swap_base: InternalGas, { RELEASE_V1_24.. => "mem.swap.base" }, 1500],
+        
+        [zkhash_poseidon_base: InternalGas, "zkhash.poseidon.base", 1000],
     ]
 );
