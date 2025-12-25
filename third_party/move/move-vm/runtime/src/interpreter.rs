@@ -2,16 +2,15 @@
 // Copyright (c) The Move Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    access_control::AccessControlState,
-    data_cache::TransactionDataCache,
-    loader::{Function, Loader, ModuleStorageAdapter, Resolver},
-    module_traversal::TraversalContext,
-    native_extensions::NativeContextExtensions,
-    native_functions::NativeContext,
-    trace,
+use std::{
+    cmp::min,
+    collections::{BTreeMap, HashSet, VecDeque},
+    fmt::Write,
+    sync::Arc,
 };
+
 use fail::fail_point;
+
 use move_binary_format::{
     errors::*,
     file_format::{
@@ -34,17 +33,17 @@ use move_vm_types::{
     },
     natives::function::NativeResult,
     values::{
-        self, GlobalValue, IntegerValue, Locals, Reference, Struct, StructRef, VMValueCast, Value,
-        Vector, VectorRef,
+        self, GlobalValue, IntegerValue, Locals, Reference, Struct, StructRef, Value, Vector,
+        VectorRef, VMValueCast,
     },
     views::TypeView,
 };
-use std::{
-    cmp::min,
-    collections::{BTreeMap, HashSet, VecDeque},
-    fmt::Write,
-    sync::Arc,
-};
+
+use crate::{access_control::AccessControlState, data_cache::TransactionDataCache, loader::{Function, Loader, ModuleStorageAdapter, Resolver}, module_traversal::TraversalContext, native_extensions::NativeContextExtensions, native_functions::NativeContext, trace};
+use crate::witnessing::Footprint;
+use crate::interpreter::footprint::footprint_args_processing;
+
+pub(crate) mod footprint;
 
 macro_rules! set_err_info {
     ($frame:ident, $e:expr) => {{
@@ -94,15 +93,16 @@ impl Interpreter {
         traversal_context: &mut TraversalContext,
         extensions: &mut NativeContextExtensions,
         loader: &Loader,
+        #[cfg(feature = "footprint")]
+        footprints: &mut footprint::Footprints,
     ) -> VMResult<Vec<Value>> {
-        Interpreter {
+        let rets = Interpreter {
             operand_stack: Stack::new(),
             call_stack: CallStack::new(),
             paranoid_type_checks: loader.vm_config().paranoid_type_checks,
             access_control: AccessControlState::default(),
             active_modules: HashSet::new(),
-        }
-        .execute_main(
+        }.execute_main(
             loader,
             data_store,
             module_store,
@@ -112,7 +112,10 @@ impl Interpreter {
             function,
             ty_args,
             args,
-        )
+            #[cfg(feature = "footprint")] footprints,
+        )?;
+
+        Ok(rets)
     }
 
     /// Main loop for the execution of a function.
@@ -132,7 +135,12 @@ impl Interpreter {
         function: Arc<Function>,
         ty_args: Vec<Type>,
         args: Vec<Value>,
+        #[cfg(feature = "footprint")]
+        footprints: &mut footprint::Footprints,
     ) -> VMResult<Vec<Value>> {
+        #[cfg(feature = "footprint")]
+        footprint_args_processing(&function, &args, footprints);
+
         let mut locals = Locals::new(function.local_count());
         for (i, value) in args.into_iter().enumerate() {
             locals
@@ -162,7 +170,7 @@ impl Interpreter {
             let resolver = current_frame.resolver(loader, module_store);
             let exit_code =
                 current_frame //self
-                    .execute_code(&resolver, &mut self, data_store, module_store, gas_meter)
+                    .execute_code(&resolver, &mut self, data_store, module_store, gas_meter, #[cfg(feature = "footprint")] footprints)
                     .map_err(|err| self.attach_state_if_invariant_violation(err, &current_frame))?;
             match exit_code {
                 ExitCode::Return => {
@@ -1517,8 +1525,10 @@ impl Frame {
         data_store: &mut TransactionDataCache,
         module_store: &ModuleStorageAdapter,
         gas_meter: &mut impl GasMeter,
+        #[cfg(feature = "footprint")]
+        footprints: &mut footprint::Footprints,
     ) -> VMResult<ExitCode> {
-        self.execute_code_impl(resolver, interpreter, data_store, module_store, gas_meter)
+        self.execute_code_impl(resolver, interpreter, data_store, module_store, gas_meter, #[cfg(feature = "footprint")] footprints)
             .map_err(|e| {
                 let e = if cfg!(feature = "testing") || cfg!(feature = "stacktrace") {
                     e.with_exec_state(interpreter.get_internal_state())
@@ -2138,6 +2148,8 @@ impl Frame {
         data_store: &mut TransactionDataCache,
         module_store: &ModuleStorageAdapter,
         gas_meter: &mut impl GasMeter,
+        #[cfg(feature = "footprint")]
+        footprints: &mut footprint::Footprints,
     ) -> PartialVMResult<ExitCode> {
         use SimpleInstruction as S;
 
@@ -2150,9 +2162,17 @@ impl Frame {
             };
         }
 
-        let code = self.function.code();
+        let code = self.function.code().to_vec();
         loop {
             for instruction in &code[self.pc as usize..] {
+                #[cfg(feature = "footprint")]
+                crate::footprint!(
+                    self,
+                    instruction,
+                    resolver,
+                    interpreter,
+                    footprints
+                )?;
                 trace!(
                     &self.function,
                     &self.locals,
