@@ -25,6 +25,9 @@ smallvec = { workspace = true }
 # used for native poseidon hash
 poseidon-base = { workspace = true }
 halo2curves = { workspace = true }
+halo2-verifier = { workspace = true }
+subtle = "2.6.1"
+
 [dev-dependencies]
 dir-diff = "0.3.2"
 file_diff = "1.0.0"

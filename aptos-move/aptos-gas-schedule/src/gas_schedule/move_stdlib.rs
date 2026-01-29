@@ -54,5 +54,7 @@ crate::gas_schedule::macros::define_gas_parameters!(
         [mem_swap_base: InternalGas, { RELEASE_V1_24.. => "mem.swap.base" }, 1500],
         
         [zkhash_poseidon_base: InternalGas, "zkhash.poseidon.base", 1000],
+        [proofs_halo2_base: InternalGas, "proofs.halo2.base", 1000],
+        [proofs_halo2_per_byte: InternalGasPerByte, "proofs.halo2.per_byte", 2],
     ]
 );

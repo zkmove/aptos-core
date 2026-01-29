@@ -720,6 +720,7 @@ poem-openapi-derive = "5.1.1"
 poseidon-ark = { git = "https://github.com/arnaucube/poseidon-ark.git", rev = "6d2487aa1308d9d3860a2b724c485d73095c1c68" }
 poseidon-base = { git = "https://github.com/zkmove/poseidon-circuit.git", branch = "main" }
 halo2curves = { git = "https://github.com/zkmove/halo2curves", branch = "zkmove" }
+halo2-verifier = { git = "https://github.com/zkmove/halo2-verifier.move.git", branch = "main" }
 pprof = { version = "0.11", features = ["flamegraph", "protobuf-codec"] }
 pretty = "0.10.0"
 pretty_assertions = "1.2.1"
