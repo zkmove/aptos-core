@@ -7,7 +7,7 @@
 use crate::{
     gas_schedule::VMGasParameters,
     ver::gas_feature_versions::{
-        RELEASE_V1_10, RELEASE_V1_11, RELEASE_V1_12, RELEASE_V1_13, RELEASE_V1_15, RELEASE_V1_26,
+        RELEASE_V1_10, RELEASE_V1_11, RELEASE_V1_12, RELEASE_V1_13, RELEASE_V1_15, RELEASE_V1_26, RELEASE_V1_39,
     },
 };
 use aptos_gas_algebra::{
@@ -215,6 +215,11 @@ crate::gas_schedule::macros::define_gas_parameters!(
             max_execution_gas_gov: InternalGas,
             { RELEASE_V1_13.. => "max_execution_gas.gov" },
             4_000_000_000,
+        ],
+        [
+            max_execution_gas_experimental: InternalGas,
+            { RELEASE_V1_39.. => "max_execution_gas.experimental" },
+            6_000_000_000, // 600ms of execution at 10k gas per ms, for experimental use only
         ],
         [
             max_io_gas: InternalGas,

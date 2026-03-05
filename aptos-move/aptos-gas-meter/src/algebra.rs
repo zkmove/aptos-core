@@ -80,7 +80,7 @@ where
             )
         } else {
             (
-                vm_gas_params.txn.max_execution_gas,
+                vm_gas_params.txn.max_execution_gas_experimental,
                 vm_gas_params.txn.max_io_gas,
                 vm_gas_params.txn.max_storage_fee,
             )
