@@ -22,6 +22,7 @@ const ADDRESSES_NAME: &str = "addresses";
 const DEV_ADDRESSES_NAME: &str = "dev-addresses";
 const DEPENDENCY_NAME: &str = "dependencies";
 const DEV_DEPENDENCY_NAME: &str = "dev-dependencies";
+const CIRCUIT_NAME: &str = "circuit";
 
 const KNOWN_NAMES: &[&str] = &[
     PACKAGE_NAME,
@@ -30,6 +31,7 @@ const KNOWN_NAMES: &[&str] = &[
     DEV_ADDRESSES_NAME,
     DEPENDENCY_NAME,
     DEV_DEPENDENCY_NAME,
+    CIRCUIT_NAME,
 ];
 
 const REQUIRED_FIELDS: &[&str] = &[PACKAGE_NAME];
