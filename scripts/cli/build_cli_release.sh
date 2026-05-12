@@ -14,14 +14,38 @@ NAME='aptos-cli'
 CRATE_NAME='aptos'
 CARGO_PATH="crates/$CRATE_NAME/Cargo.toml"
 PLATFORM_NAME="$1"
+EXPECTED_VERSION="${2:-}"
+SKIP_CHECKS="${3:-false}"
+COMPATIBILITY_MODE="${4:-false}"
 
 # Grab system information
-ARCH=`uname -m`
-OS=`uname -s`
-VERSION=`cat "$CARGO_PATH" | grep "^\w*version =" | sed 's/^.*=[ ]*"//g' | sed 's/".*$//g'`
+ARCH=$(uname -m)
+OS=$(uname -s)
+VERSION=$(sed -n '/^\w*version = /p' "$CARGO_PATH" | sed 's/^.*=[ ]*"//g' | sed 's/".*$//g')
 
-echo "Building release $VERSION of $NAME for $OS-$PLATFORM_NAME"
-cargo build -p $CRATE_NAME --profile cli
+if [[ "$SKIP_CHECKS" != "true" && -n "$EXPECTED_VERSION" ]]; then
+  EXPECTED_VERSION="${EXPECTED_VERSION#v}"
+  EXPECTED_VERSION=$(printf '%s\n' "$EXPECTED_VERSION" | sed -nE 's/^([0-9]+\.[0-9]+\.[0-9]+).*/\1/p')
+
+  if [[ -z "$EXPECTED_VERSION" ]]; then
+    echo "Release version is malformed, must start with x.y.z or vx.y.z"
+    exit 1
+  fi
+
+  if [[ "$EXPECTED_VERSION" != "$VERSION" ]]; then
+    echo "Wanted to release $EXPECTED_VERSION, but Cargo.toml says the version is $VERSION"
+    exit 2
+  fi
+elif [[ "$SKIP_CHECKS" == "true" ]]; then
+  echo "WARNING: Skipping version checks!"
+fi
+
+echo "Building release $VERSION of $NAME for $OS-$PLATFORM_NAME on $ARCH"
+if [[ "$COMPATIBILITY_MODE" == "true" ]]; then
+  RUSTFLAGS="-C target-cpu=generic --cfg tokio_unstable -C target-feature=-sse4.2,-avx" cargo build -p "$CRATE_NAME" --profile cli
+else
+  cargo build -p "$CRATE_NAME" --profile cli
+fi
 
 cd target/cli/
 
@@ -29,5 +53,6 @@ cd target/cli/
 ZIP_NAME="$NAME-$VERSION-$PLATFORM_NAME-$ARCH.zip"
 
 echo "Zipping release: $ZIP_NAME"
-zip $ZIP_NAME $CRATE_NAME
-mv $ZIP_NAME ../..
+zip "$ZIP_NAME" "$CRATE_NAME"
+zip -T "$ZIP_NAME"
+mv "$ZIP_NAME" ../..
