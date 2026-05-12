@@ -35,7 +35,7 @@ jobs:
           ref: ${{ github.event.inputs.source_git_ref_override }}
       - uses: aptos-labs/aptos-core/.github/actions/rust-setup@main
       - name: Build CLI
-        run: scripts/cli/build_cli_release.sh "Ubuntu" "${{ inputs.release_version }}" "${{ inputs.skip_checks }}" "false"
+        run: scripts/cli/build_cli_release.sh "Ubuntu" "${{ inputs.release_version }}" "${{ inputs.skip_checks }}" "false" "x86_64"
       - name: Upload Binary
         uses: actions/upload-artifact@v4
         with:
@@ -51,7 +51,7 @@ jobs:
           ref: ${{ github.event.inputs.source_git_ref_override }}
       - uses: aptos-labs/aptos-core/.github/actions/rust-setup@main
       - name: Build CLI
-        run: scripts/cli/build_cli_release.sh "Ubuntu-22.04" "${{ inputs.release_version }}" "${{ inputs.skip_checks }}" "false"
+        run: scripts/cli/build_cli_release.sh "Ubuntu-22.04" "${{ inputs.release_version }}" "${{ inputs.skip_checks }}" "false" "x86_64"
       - name: Upload Binary
         uses: actions/upload-artifact@v4
         with:
@@ -67,7 +67,7 @@ jobs:
           ref: ${{ github.event.inputs.source_git_ref_override }}
       - uses: aptos-labs/aptos-core/.github/actions/rust-setup@main
       - name: Build CLI
-        run: scripts/cli/build_cli_release.sh "macOS" "${{ inputs.release_version }}" "${{ inputs.skip_checks }}" "false"
+        run: scripts/cli/build_cli_release.sh "macOS" "${{ inputs.release_version }}" "${{ inputs.skip_checks }}" "false" "x86_64"
       - name: Upload Binary
         uses: actions/upload-artifact@v4
         with:
@@ -83,7 +83,7 @@ jobs:
           ref: ${{ github.event.inputs.source_git_ref_override }}
       - uses: aptos-labs/aptos-core/.github/actions/rust-setup@main
       - name: Build CLI
-        run: scripts/cli/build_cli_release.sh "macOS" "${{ inputs.release_version }}" "${{ inputs.skip_checks }}" "false"
+        run: scripts/cli/build_cli_release.sh "macOS" "${{ inputs.release_version }}" "${{ inputs.skip_checks }}" "false" "arm64"
       - name: Upload Binary
         uses: actions/upload-artifact@v4
         with:
