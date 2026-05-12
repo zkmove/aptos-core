@@ -17,11 +17,17 @@ PLATFORM_NAME="$1"
 EXPECTED_VERSION="${2:-}"
 SKIP_CHECKS="${3:-false}"
 COMPATIBILITY_MODE="${4:-false}"
+EXPECTED_ARCH="${5:-}"
 
 # Grab system information
 ARCH=$(uname -m)
 OS=$(uname -s)
 VERSION=$(sed -n '/^\w*version = /p' "$CARGO_PATH" | sed 's/^.*=[ ]*"//g' | sed 's/".*$//g')
+
+if [[ -n "$EXPECTED_ARCH" && "$ARCH" != "$EXPECTED_ARCH" ]]; then
+  echo "Expected runner arch $EXPECTED_ARCH, but uname -m returned $ARCH"
+  exit 4
+fi
 
 if [[ "$SKIP_CHECKS" != "true" && -n "$EXPECTED_VERSION" ]]; then
   EXPECTED_VERSION="${EXPECTED_VERSION#v}"
@@ -46,6 +52,8 @@ if [[ "$COMPATIBILITY_MODE" == "true" ]]; then
 else
   cargo build -p "$CRATE_NAME" --profile cli
 fi
+
+file "target/cli/$CRATE_NAME"
 
 cd target/cli/
 
